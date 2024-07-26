@@ -79,9 +79,10 @@ def obo_parser(obo_file, valid_rel=("is_a", "part_of"), ia_file=None, orphans=Tr
     return ontologies
 
 
-def gt_parser(gt_file, ontologies):
+def gt_parser(gt_file, ontologies, gt_prop=True):
     """
     Parse ground truth file. Discard terms not included in the ontology.
+    If gt_prop=False, annotations will not be propagated in ontology
     """
     gt_dict = {}
     replaced = {}
@@ -112,7 +113,8 @@ def gt_parser(gt_file, ontologies):
                 for term_id in gt_dict[ns][p_id]:
                     matrix[i, ontologies[ns].terms_dict[term_id]['index']] = 1
             logging.debug("gt matrix {} {} ".format(ns, matrix))
-            propagate(matrix, ontologies[ns], ontologies[ns].order, mode='max')
+            if gt_prop:
+                propagate(matrix, ontologies[ns], ontologies[ns].order, mode='max')
             logging.debug("gt matrix propagated {} {} ".format(ns, matrix))
             gts[ns] = GroundTruth(ids, matrix, ns)
             logging.info('Ground truth: {}, proteins {}, annotations {}, replaced alt. ids {}'.format(ns, len(ids),

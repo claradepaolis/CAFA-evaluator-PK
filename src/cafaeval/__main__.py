@@ -18,6 +18,9 @@ def command_line():
     parser.add_argument('-ia', help='Information Accretion file (columns: <term> <information_accretion>)')
     parser.add_argument('-no_orphans', action='store_true', default=False,
                         help='Exclude terms without parents, e.g. the root(s), in the evaluation')
+    parser.add_argument('-no_gtprop', action='store_true', default=False,
+                        help='Prevent ground truth annotations from propagating. '
+                             'Only terms in gt_file will be included in evaluation')
     parser.add_argument('-norm', choices=['cafa', 'pred', 'gt'], default='cafa',
                         help='cafa - implements the CAFA normalization strategy. '
                              'Precision is normalized by the number of predicted targets, '
@@ -50,6 +53,7 @@ def command_line():
     # Run the evaluation
     df, dfs_best = cafa_eval(args.obo_file, args.pred_dir, args.gt_file,
                              ia=args.ia, no_orphans=args.no_orphans, norm=args.norm, prop=args.prop,
+                             gt_prop=not args.no_gtprop,
                              max_terms=args.max_terms, th_step=args.th_step, n_cpu=args.threads)
 
     # Write the results

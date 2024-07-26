@@ -151,7 +151,7 @@ def evaluate_prediction(prediction, gt, ontologies, tau_arr, normalization='cafa
     return dfs
 
 
-def cafa_eval(obo_file, pred_dir, gt_file, ia=None, no_orphans=False, norm='cafa', prop='max', max_terms=None, th_step=0.01, n_cpu=1):
+def cafa_eval(obo_file, pred_dir, gt_file, ia=None, no_orphans=False, norm='cafa', prop='max', gt_prop=True, max_terms=None, th_step=0.01, n_cpu=1):
 
     # Tau array, used to compute metrics at different score thresholds
     tau_arr = np.arange(th_step, 1, th_step)
@@ -160,7 +160,7 @@ def cafa_eval(obo_file, pred_dir, gt_file, ia=None, no_orphans=False, norm='cafa
     ontologies = obo_parser(obo_file, ("is_a", "part_of"), ia, not no_orphans)
 
     # Parse ground truth file
-    gt = gt_parser(gt_file, ontologies)
+    gt = gt_parser(gt_file, ontologies, gt_prop)
 
     # Set prediction files looking recursively in the prediction folder
     pred_folder = os.path.normpath(pred_dir) + "/"  # add the tailing "/"
