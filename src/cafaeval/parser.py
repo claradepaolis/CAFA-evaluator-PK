@@ -79,10 +79,9 @@ def obo_parser(obo_file, valid_rel=("is_a", "part_of"), ia_file=None, orphans=Tr
     return ontologies
 
 
-def gt_parser(gt_file, ontologies, gt_prop=True):
+def gt_parser(gt_file, ontologies):
     """
     Parse ground truth file. Discard terms not included in the ontology.
-    If gt_prop=False, annotations will not be propagated in ontology
     """
     gt_dict = {}
     replaced = {}
@@ -113,14 +112,33 @@ def gt_parser(gt_file, ontologies, gt_prop=True):
                 for term_id in gt_dict[ns][p_id]:
                     matrix[i, ontologies[ns].terms_dict[term_id]['index']] = 1
             logging.debug("gt matrix {} {} ".format(ns, matrix))
-            if gt_prop:
-                propagate(matrix, ontologies[ns], ontologies[ns].order, mode='max')
+            
+            propagate(matrix, ontologies[ns], ontologies[ns].order, mode='max')
             logging.debug("gt matrix propagated {} {} ".format(ns, matrix))
             gts[ns] = GroundTruth(ids, matrix, ns)
             logging.info('Ground truth: {}, proteins {}, annotations {}, replaced alt. ids {}'.format(ns, len(ids),
                                                                                 np.count_nonzero(matrix), replaced.get(ns, 0)))
 
     return gts
+
+
+def gt_exclude_parser(exclude_file, gt, ontologies):
+    """
+    Process terms that should be excluded from evaluation.
+    """
+    # Propagate exclude terms and parse alternative IDs
+    exclude_gt = gt_parser(exclude_file, ontologies)
+
+    # reindex exclusion matrices to match ground truth
+    exclude = {}
+    for ns in gt:
+        exclude_matrix = np.zeros_like(gt[ns].matrix)
+        for protein, gt_index in gt[ns].ids.items():
+            # Keep row corresponding to gt proteins
+            if protein in exclude_gt[ns].ids:
+                exclude_matrix[gt_index, :] = exclude_gt[ns].matrix[exclude_gt[ns].ids[protein], :]
+        exclude[ns] = GroundTruth(gt[ns].ids, exclude_matrix, ns)
+    return exclude
 
 
 def pred_parser(pred_file, ontologies, gts, prop_mode, max_terms=None):

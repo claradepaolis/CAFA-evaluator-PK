@@ -2,7 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 import multiprocessing as mp
-from cafaeval.parser import obo_parser, gt_parser, pred_parser
+from cafaeval.parser import obo_parser, gt_parser, pred_parser, gt_exclude_parser
 import logging
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 
@@ -67,7 +67,53 @@ def compute_confusion_matrix(tau_arr, g, pred, toi, n_gt, ic_arr=None):
     return metrics
 
 
-def compute_metrics(pred, gt, tau_arr, toi, ic_arr=None, n_cpu=0):
+def compute_confusion_matrix_exclude(tau_arr, g_perprotein, pred, toi_perprotein, n_gt, ic_arr=None):
+    """
+    Perform the evaluation at the matrix level for all tau thresholds
+    The calculation is
+
+    Here, g is the full ground truth matrix without filtering terms of interest (toi).
+    Instead,
+    """
+    # n, tp, fp, fn, pr, rc (fp = misinformation, fn = remaining uncertainty)
+    metrics = np.zeros((len(tau_arr), 6), dtype='float')
+
+    for i, tau in enumerate(tau_arr):
+
+        # Filter predictions based on tau threshold
+        p_perprotein = [solidify_prediction(pred.matrix[p_idx, tois], tau) for p_idx, tois in enumerate(toi_perprotein)]
+
+        # Terms subsets
+        intersection = [np.logical_and(p_i, g_i) for p_i, g_i in zip(p_perprotein, g_perprotein)]  # TP
+        mis = [np.logical_and(p_i, np.logical_not(g_i)) for p_i, g_i in zip(p_perprotein, g_perprotein)]  # FP, predicted but not in the ground truth
+        remaining = [np.logical_and(np.logical_not(p_i), g_i) for p_i, g_i in zip(p_perprotein, g_perprotein)]  # FN, not predicted but in the ground truth
+
+        # Weighted evaluation
+        if ic_arr is not None:
+            p_perprotein = [p_i * ic_arr[tois] for p_i, tois in zip(p_perprotein, toi_perprotein)]
+            intersection = [inter * ic_arr[tois] for inter, tois in zip(intersection, toi_perprotein)]  # TP
+            mis = [misinf * ic_arr[tois] for misinf, tois in zip(mis, toi_perprotein)]  # FP, predicted but not in the ground truth
+            remaining = [rem * ic_arr[tois] for rem, tois in zip(remaining, toi_perprotein)]  # FN, not predicted but in the ground truth
+
+        n_pred = np.array([p_i.sum() for p_i in p_perprotein])  # TP + FP
+        n_intersection = np.array([inter.sum() for inter in intersection])  # TP
+
+        # Number of proteins with at least one term predicted with score >= tau
+        metrics[i, 0] = (n_pred > 0).sum()
+
+        # Sum of confusion matrices
+        metrics[i, 1] = n_intersection.sum()  # TP
+        metrics[i, 2] = np.sum([m.sum() for m in mis])  # FP
+        metrics[i, 3] = np.sum([r.sum() for r in remaining])  # FN
+
+        # Macro-averaging
+        metrics[i, 4] = np.divide(n_intersection, n_pred, out=np.zeros_like(n_intersection, dtype='float'), where=n_pred > 0).sum()  # Precision
+        metrics[i, 5] = np.divide(n_intersection, n_gt, out=np.zeros_like(n_gt, dtype='float'), where=n_gt > 0).sum()  # Recall
+
+    return metrics
+
+
+def compute_metrics(pred, gt, tau_arr, toi, gt_exclude=None, ic_arr=None, n_cpu=0):
     """
     Takes the prediction and the ground truth and for each threshold in tau_arr
     calculates the confusion matrix and returns the coverage,
@@ -80,16 +126,32 @@ def compute_metrics(pred, gt, tau_arr, toi, ic_arr=None, n_cpu=0):
 
     columns = ["n", "tp", "fp", "fn", "pr", "rc"]
     g = gt.matrix[:, toi]
+
+    if gt_exclude is not None:
+        g_exclude = gt_exclude.matrix[:, toi]
+        toi_perprotein = [np.setdiff1d(toi, gt_exclude.matrix[p, :].nonzero()[0], assume_unique=True) for p in
+                          range(g.shape[0])]
+        gt_perprotein = [gt.matrix[p_idx, tois] for p_idx, tois in enumerate(toi_perprotein)]
+        # The number of GT annotations per proteins will change to exclude the set from g_exclude
+        count_g = np.logical_and(np.logical_not(g_exclude), g)  # count terms in g only if they are not in exclude list
+    else:
+        count_g = g
+
     # Simple metrics
     if ic_arr is None:
-        n_gt = g.sum(axis=1)
-        arg_lists = [[tau_arr, g, pred, toi, n_gt, None] for tau_arr in np.array_split(tau_arr, n_cpu)]
+        n_gt = count_g.sum(axis=1)
     # Weighted metrics
     else:
-        n_gt = (g * ic_arr[toi]).sum(axis=1)
+        n_gt = (count_g * ic_arr[toi]).sum(axis=1)
+
+    if gt_exclude is None:
         arg_lists = [[tau_arr, g, pred, toi, n_gt, ic_arr] for tau_arr in np.array_split(tau_arr, n_cpu)]
-    with mp.Pool(processes=n_cpu) as pool:
-        metrics = np.concatenate(pool.starmap(compute_confusion_matrix, arg_lists), axis=0)
+        with mp.Pool(processes=n_cpu) as pool:
+            metrics = np.concatenate(pool.starmap(compute_confusion_matrix, arg_lists), axis=0)
+    else:
+        arg_lists = [[tau_arr, gt_perprotein, pred, toi_perprotein, n_gt, ic_arr] for tau_arr in np.array_split(tau_arr, n_cpu)]
+        with mp.Pool(processes=n_cpu) as pool:
+            metrics = np.concatenate(pool.starmap(compute_confusion_matrix_exclude, arg_lists), axis=0)
 
     return pd.DataFrame(metrics, columns=columns)
 
@@ -129,17 +191,28 @@ def normalize(metrics, ns, tau_arr, ne, normalization):
     return metrics
 
 
-def evaluate_prediction(prediction, gt, ontologies, tau_arr, normalization='cafa', n_cpu=0):
+def evaluate_prediction(prediction, gt, ontologies, tau_arr, gt_exclude=None, normalization='cafa', n_cpu=0):
 
     dfs = []
     dfs_w = []
-    for ns in prediction:
-        ne = np.full(len(tau_arr), gt[ns].matrix[:, ontologies[ns].toi].shape[0])
-        dfs.append(normalize(compute_metrics(prediction[ns], gt[ns], tau_arr, ontologies[ns].toi, None, n_cpu), ns, tau_arr, ne, normalization))
 
+    # Unweighted metrics
+    for ns in prediction:
+        exclude = None if gt_exclude is None else gt_exclude[ns]
+        ne = np.full(len(tau_arr), gt[ns].matrix[:, ontologies[ns].toi].shape[0])
+
+        dfs.append(normalize(compute_metrics(
+            prediction[ns], gt[ns], tau_arr, ontologies[ns].toi, exclude, None, n_cpu),
+                             ns, tau_arr, ne, normalization))
+
+        # Weighted metrics
         if ontologies[ns].ia is not None:
+            exclude = None if gt_exclude is None else gt_exclude[ns]
             ne = np.full(len(tau_arr), gt[ns].matrix[:, ontologies[ns].toi_ia].shape[0])
-            dfs_w.append(normalize(compute_metrics(prediction[ns], gt[ns], tau_arr, ontologies[ns].toi_ia, ontologies[ns].ia, n_cpu), ns, tau_arr, ne, normalization))
+
+            dfs_w.append(normalize(
+                compute_metrics(prediction[ns], gt[ns], tau_arr, ontologies[ns].toi_ia, exclude, ontologies[ns].ia, n_cpu),
+                ns, tau_arr, ne, normalization))
 
     dfs = pd.concat(dfs)
 
@@ -151,7 +224,8 @@ def evaluate_prediction(prediction, gt, ontologies, tau_arr, normalization='cafa
     return dfs
 
 
-def cafa_eval(obo_file, pred_dir, gt_file, ia=None, no_orphans=False, norm='cafa', prop='max', gt_prop=True, max_terms=None, th_step=0.01, n_cpu=1):
+def cafa_eval(obo_file, pred_dir, gt_file, ia=None, no_orphans=False, norm='cafa', prop='max',
+              exclude=None, max_terms=None, th_step=0.01, n_cpu=1):
 
     # Tau array, used to compute metrics at different score thresholds
     tau_arr = np.arange(th_step, 1, th_step)
@@ -160,9 +234,13 @@ def cafa_eval(obo_file, pred_dir, gt_file, ia=None, no_orphans=False, norm='cafa
     ontologies = obo_parser(obo_file, ("is_a", "part_of"), ia, not no_orphans)
 
     # Parse ground truth file
-    gt = gt_parser(gt_file, ontologies, gt_prop)
+    gt = gt_parser(gt_file, ontologies)
+    if exclude is not None:
+        gt_exclude = gt_exclude_parser(exclude, gt, ontologies)
+    else:
+        gt_exclude = None
 
-    # Set prediction files looking recursively in the prediction folder
+        # Set prediction files looking recursively in the prediction folder
     pred_folder = os.path.normpath(pred_dir) + "/"  # add the tailing "/"
     pred_files = []
     for root, dirs, files in os.walk(pred_folder):
@@ -177,7 +255,8 @@ def cafa_eval(obo_file, pred_dir, gt_file, ia=None, no_orphans=False, norm='cafa
         if not prediction:
             logging.warning("Prediction: {}, not evaluated".format(file_name))
         else:
-            df_pred = evaluate_prediction(prediction, gt, ontologies, tau_arr, normalization=norm, n_cpu=n_cpu)
+            df_pred = evaluate_prediction(prediction, gt, ontologies, tau_arr, gt_exclude,
+                                          normalization=norm, n_cpu=n_cpu)
             df_pred['filename'] = file_name.replace(pred_folder, '').replace('/', '_')
             dfs.append(df_pred)
             logging.info("Prediction: {}, evaluated".format(file_name))

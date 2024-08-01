@@ -18,9 +18,6 @@ def command_line():
     parser.add_argument('-ia', help='Information Accretion file (columns: <term> <information_accretion>)')
     parser.add_argument('-no_orphans', action='store_true', default=False,
                         help='Exclude terms without parents, e.g. the root(s), in the evaluation')
-    parser.add_argument('-no_gtprop', action='store_true', default=False,
-                        help='Prevent ground truth annotations from propagating. '
-                             'Only terms in gt_file will be included in evaluation')
     parser.add_argument('-norm', choices=['cafa', 'pred', 'gt'], default='cafa',
                         help='cafa - implements the CAFA normalization strategy. '
                              'Precision is normalized by the number of predicted targets, '
@@ -30,6 +27,8 @@ def command_line():
     parser.add_argument('-prop', choices=['max', 'fill'], default='max',
                         help='Ancestor propagation strategy. max - Propagate the max score of the traversed subgraph '
                              'iteratively. fill - Propagate with max until a different score is found')
+    parser.add_argument('-exclude', default=None,
+                        help='Terms to exclude from evaluation. Same format at ground truth file')
     parser.add_argument('-th_step', type=float, default=0.01,
                         help='Threshold step size in the range [0, 1). A smaller step, means more calculation')
     parser.add_argument('-max_terms', type=int, default=None,
@@ -53,7 +52,7 @@ def command_line():
     # Run the evaluation
     df, dfs_best = cafa_eval(args.obo_file, args.pred_dir, args.gt_file,
                              ia=args.ia, no_orphans=args.no_orphans, norm=args.norm, prop=args.prop,
-                             gt_prop=not args.no_gtprop,
+                             exclude=args.exclude,
                              max_terms=args.max_terms, th_step=args.th_step, n_cpu=args.threads)
 
     # Write the results
