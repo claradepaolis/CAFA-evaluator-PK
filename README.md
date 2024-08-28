@@ -172,6 +172,31 @@ IDPO:00025  0.56
 ...
 ```
 
+**Known annotations (optional)** - Tab separated file with target ID and term ID. 
+File containing known annotations to exclude from partial-knowledge evaluation. 
+If not provided, all terms will be used in evaluation
+
+```
+A0A009IHW8	GO:0072523	BPO
+A0A009IHW8	GO:0046700	BPO
+A0A021WW32	GO:0048869	BPO
+A0A021WW32	GO:0006996	BPO
+...
+```
+
+**Terms of Interest (optional)** - File with term ID to include in evaluation for all proteins, one ID per line.  
+If not provided, all terms will be used in evaluation. 
+This file is used to specify terms that will be evaluated, usually used to exclude terms in the ontology that have since
+been obsoleted or are not of interest for the evaluation.
+
+```
+GO:0055039
+GO:0072523
+GO:0003882
+GO:0010139
+...
+```
+
 ## Output files
 
 Output files are generated in the `results` folder. The same files are gerated by both
@@ -186,16 +211,18 @@ A different file for each metric is created.
 
 ## Optional parameters
 
-|   Argument  | Default value | Description                                                                                                                                                                                                                                                |
-|:-----------:|------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-|   -out_dir  |   'results' | Output directory (tsv files + log). Either relative to current path or absolute                                                                                                                                                                            |
-|     -ia     |            | Information accretion file                                                                                                                                                                                                                                 |
-| -no_orphans |  False (flag) | Exclude orphans nodes (e.g. roots) from the calculation                                                                                                                                                                                                    |
-|    -norm    |     'cafa'  | Normalization strategy. `cafa` normalize precision by the number of predicted targets and recall by the number of targets in the ground truth. `pred` normalize by the number of  predicted targets. `gt` normalize by the number of ground truth proteins |
-|    -prop    |     'max'  | Ancestor propagation strategy. `max` propagate the max score of the traversed subgraph iteratively. `fill` propagate with max until a different score is found                                                                                             |
-|   -th_step  |      0.01  | Step size of prediction score thresholds to consider in the range [0, 1). A smaller step, means more calculation                                                                                                                                           |
-|  -max_terms |            | Number of terms for protein and namespace to consider in the evaluation. Parsing stops when the target limit for every namespace is reached. The score is not checked, meaning that terms are not sorted before the check, and the check is performed before propagation.                                                                                                                                                                                  |
-|   -threads  |       4    | Parallel threads. `0` means use all available CPU threads. Do not use multi thread if you are short in memory                                                                                                                                              |
+|  Argument   | Default value | Description                                                                                                                                                                                                                                                               |
+|:-----------:|------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|  -out_dir   |   'results' | Output directory (tsv files + log). Either relative to current path or absolute                                                                                                                                                                                           |
+|     -ia     |            | Information accretion file                                                                                                                                                                                                                                                |
+|   -known    |            | Known annotations for each protein that should be excluded in partial-knowledge evaluation                                                                                                                                                                               |
+|    -toi     |            | Terms of interest file   (terms considered for all proteins)                                                                                                                                                                                                              |
+| -no_orphans |  False (flag) | Exclude orphans nodes (e.g. roots) from the calculation                                                                                                                                                                                                                   |
+|    -norm    |     'cafa'  | Normalization strategy. `cafa` normalize precision by the number of predicted targets and recall by the number of targets in the ground truth. `pred` normalize by the number of  predicted targets. `gt` normalize by the number of ground truth proteins                |
+|    -prop    |     'max'  | Ancestor propagation strategy. `max` propagate the max score of the traversed subgraph iteratively. `fill` propagate with max until a different score is found                                                                                                            |
+|  -th_step   |      0.01  | Step size of prediction score thresholds to consider in the range [0, 1). A smaller step, means more calculation                                                                                                                                                          |
+| -max_terms  |            | Number of terms for protein and namespace to consider in the evaluation. Parsing stops when the target limit for every namespace is reached. The score is not checked, meaning that terms are not sorted before the check, and the check is performed before propagation. |
+|  -threads   |       4    | Parallel threads. `0` means use all available CPU threads. Do not use multi thread if you are short in memory                                                                                                                                                             |
 
 
 

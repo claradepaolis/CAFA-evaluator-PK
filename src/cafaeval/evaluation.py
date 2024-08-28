@@ -225,13 +225,15 @@ def evaluate_prediction(prediction, gt, ontologies, tau_arr, gt_exclude=None, no
 
 
 def cafa_eval(obo_file, pred_dir, gt_file, ia=None, no_orphans=False, norm='cafa', prop='max',
-              exclude=None, max_terms=None, th_step=0.01, n_cpu=1):
+              exclude=None, toi_file=None, max_terms=None, th_step=0.01, n_cpu=1):
 
     # Tau array, used to compute metrics at different score thresholds
     tau_arr = np.arange(th_step, 1, th_step)
 
     # Parse the OBO file and creates a different graphs for each namespace
     ontologies = obo_parser(obo_file, ("is_a", "part_of"), ia, not no_orphans)
+    if toi_file is not None:
+        ontologies = update_toi(ontologies, toi_file)
 
     # Parse ground truth file
     gt = gt_parser(gt_file, ontologies)
@@ -240,7 +242,7 @@ def cafa_eval(obo_file, pred_dir, gt_file, ia=None, no_orphans=False, norm='cafa
     else:
         gt_exclude = None
 
-        # Set prediction files looking recursively in the prediction folder
+    # Set prediction files looking recursively in the prediction folder
     pred_folder = os.path.normpath(pred_dir) + "/"  # add the tailing "/"
     pred_files = []
     for root, dirs, files in os.walk(pred_folder):

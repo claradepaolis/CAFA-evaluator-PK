@@ -79,6 +79,36 @@ def obo_parser(obo_file, valid_rel=("is_a", "part_of"), ia_file=None, orphans=Tr
     return ontologies
 
 
+def update_toi(ontologies, toi_file):
+    """
+    Remove terms not of interest from evaluation, eg for terms obsoleted since ontology was created
+    :param ontologies: dict returned from obo_parser
+    :param term_file: file with GO IDs to include in the terms of interest
+    :return: copy of ontologies with updated toi
+    """
+    # load file of terms
+    new_toi = {ns: [] for ns in ontologies.keys()}
+    with open(toi_file) as f:
+        for line in f:
+            line = line.strip().split()
+            if line:
+                term = line[0]
+                for ns in ontologies.keys():
+                    if term in ontologies[ns].terms_dict.keys():
+                        new_toi[ns].append(ontologies[ns].terms_dict[term]['index'])
+
+                    # catch alt IDs if used
+                    elif term in ontologies[ns].terms_dict_alt.keys():
+                        alt_id = ontologies[ns].terms_dict_alt[term]
+                        new_toi[ns].append(ontologies[ns].terms_dict[alt_id]['index'])
+
+    # take intersection to make sure roots are excluded if needed
+    for ns in ontologies.keys():
+        ontologies[ns].toi = np.array(list(set(new_toi[ns]).intersection(ontologies[ns].toi)))
+
+    return ontologies
+
+
 def gt_parser(gt_file, ontologies):
     """
     Parse ground truth file. Discard terms not included in the ontology.
