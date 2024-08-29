@@ -1,5 +1,5 @@
 import argparse
-from cafaeval.evaluation import cafa_eval, write_results
+from evaluation import cafa_eval, write_results
 import logging
 
 

@@ -2,7 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 import multiprocessing as mp
-from cafaeval.parser import obo_parser, gt_parser, pred_parser, gt_exclude_parser
+from parser import obo_parser, gt_parser, pred_parser, gt_exclude_parser, update_toi
 import logging
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 
