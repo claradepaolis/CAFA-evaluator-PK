@@ -108,7 +108,8 @@ def update_toi(ontologies, toi_file):
 
     # toi_ia is the non-zero IA terms. We need to remove any terms not in the TOI file from there too
     for ns in ontologies.keys():
-        ontologies[ns].toi_ia = np.array(list(set(new_toi[ns]).intersection(ontologies[ns].toi_ia)))
+        if ontologies[ns].toi_ia is not None:
+            ontologies[ns].toi_ia = np.array(list(set(new_toi[ns]).intersection(ontologies[ns].toi_ia)))
 
     return ontologies
 
