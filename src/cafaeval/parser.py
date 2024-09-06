@@ -99,8 +99,9 @@ def update_toi(ontologies, toi_file):
 
                     # catch alt IDs if used
                     elif term in ontologies[ns].terms_dict_alt.keys():
-                        alt_id = ontologies[ns].terms_dict_alt[term].pop()  # assumes this is always length 1
-                        new_toi[ns].append(ontologies[ns].terms_dict[alt_id]['index'])
+                        alt_ids = ontologies[ns].terms_dict_alt[term]
+                        for alt_id in alt_ids:
+                            new_toi[ns].append(ontologies[ns].terms_dict[alt_id]['index'])
 
     # take intersection to make sure roots are excluded if needed
     for ns in ontologies.keys():
