@@ -198,8 +198,20 @@ def evaluate_prediction(prediction, gt, ontologies, tau_arr, gt_exclude=None, no
 
     # Unweighted metrics
     for ns in prediction:
-        exclude = None if gt_exclude is None else gt_exclude[ns]
-        ne = np.full(len(tau_arr), gt[ns].matrix[:, ontologies[ns].toi].shape[0])
+        if gt_exclude is None:
+            exclude = None
+            # number of proteins with positive predicitons
+            num_pred_prots = (gt[ns].matrix[:, ontologies[ns].toi].sum(1) > 0).sum()
+        else:
+            exclude = gt_exclude[ns]
+            # number of proteins with positive predicitons
+            num_proteins = gt[ns].matrix.shape[0]
+            toi_perprotein = [
+                np.setdiff1d(ontologies[ns].toi, gt_exclude[ns].matrix[p, :].nonzero()[0], assume_unique=True) for p in
+                range(num_proteins)]
+            num_pred_prots = sum([gt[ns].matrix[p, toi_perprotein[p]].sum()>0 for p in range(num_proteins)])
+
+        ne = np.full(len(tau_arr), num_pred_prots)
 
         dfs.append(normalize(compute_metrics(
             prediction[ns], gt[ns], tau_arr, ontologies[ns].toi, exclude, None, n_cpu),
