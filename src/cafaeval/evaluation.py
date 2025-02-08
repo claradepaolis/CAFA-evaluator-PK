@@ -2,6 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 import multiprocessing as mp
+import random
 from parser import obo_parser, gt_parser, pred_parser, gt_exclude_parser, update_toi
 import logging
 logging.getLogger(__name__).addHandler(logging.NullHandler())
@@ -24,13 +25,15 @@ def compute_s(ru, mi):
     # return np.where(np.isnan(ru), mi, np.sqrt(ru + np.nan_to_num(mi)))
 
 
-def compute_confusion_matrix(tau_arr, g, pred, toi, n_gt, ic_arr=None):
+def compute_confusion_matrix(tau_arr, g, pred, toi, n_gt, ic_arr=None, B_ind = None):
     """
     Perform the evaluation at the matrix level for all tau thresholds
     The calculation is
     """
     # n, tp, fp, fn, pr, rc (fp = misinformation, fn = remaining uncertainty)
     metrics = np.zeros((len(tau_arr), 6), dtype='float')
+    metrics_B_tau = {}
+    metrics_B = []
 
     for i, tau in enumerate(tau_arr):
 
@@ -64,10 +67,13 @@ def compute_confusion_matrix(tau_arr, g, pred, toi, n_gt, ic_arr=None):
         metrics[i, 4] = np.divide(n_intersection, n_pred, out=np.zeros_like(n_intersection, dtype='float'), where=n_pred > 0).sum()  # Precision
         metrics[i, 5] = np.divide(n_intersection, n_gt, out=np.zeros_like(n_gt, dtype='float'), where=n_gt > 0).sum()  # Recall
 
-    return metrics
+        if B_ind is not None:
+            metrics_B_tau[i] = bootstrap(p, intersection, mis, remaining, n_gt, B_ind)
+    #if B_ind is not None:
+    #    metrics_B = get_metrics_B(metrics_B_tau)
+    return metrics, metrics_B_tau
 
-
-def compute_confusion_matrix_exclude(tau_arr, g_perprotein, pred, toi_perprotein, n_gt, ic_arr=None):
+def compute_confusion_matrix_exclude(tau_arr, g_perprotein, pred, toi_perprotein, n_gt, ic_arr=None, B_ind = None):
     """
     Perform the evaluation at the matrix level for all tau thresholds
     The calculation is
@@ -77,6 +83,8 @@ def compute_confusion_matrix_exclude(tau_arr, g_perprotein, pred, toi_perprotein
     """
     # n, tp, fp, fn, pr, rc (fp = misinformation, fn = remaining uncertainty)
     metrics = np.zeros((len(tau_arr), 6), dtype='float')
+    metrics_B_tau = {}
+    metrics_B = []
 
     for i, tau in enumerate(tau_arr):
 
@@ -109,11 +117,81 @@ def compute_confusion_matrix_exclude(tau_arr, g_perprotein, pred, toi_perprotein
         # Macro-averaging
         metrics[i, 4] = np.divide(n_intersection, n_pred, out=np.zeros_like(n_intersection, dtype='float'), where=n_pred > 0).sum()  # Precision
         metrics[i, 5] = np.divide(n_intersection, n_gt, out=np.zeros_like(n_gt, dtype='float'), where=n_gt > 0).sum()  # Recall
+        if B_ind is not None:
+            metrics_B_tau[tau] = bootstrap_exclude(p_perprotein, intersection, mis, remaining, n_gt, B_ind)
+    #if B_ind is not None:
+    #    metrics_B = get_metrics_B(metrics_B_tau)
 
-    return metrics
+    return metrics, metrics_B_tau
 
+# Input-> metrics_B_tau : a dict where thresholds are the keys, and a metrics array per threshold containing B rows, is in the values
+# output-> metrics_B: a dict where a b index corresponding to each bootstrap round is the key and a metrics array containing one row per tau (threshold) is the output
+def get_metrics_B(metrics_B_tau):
+    taus = sorted(list(metrics_B_tau.keys()))
+    B = len(metrics_B_tau[taus[0]]) #B = number of rows in the dict at the first key (threshold)
+    metrics_B = {}
+    columns = ["n", "tp", "fp", "fn", "pr", "rc"]
+    for b in range(B):
+        rows = []
+        metrics_b = np.zeros((len(metrics_B_tau.keys()), 6), dtype='float')
+        for i, tau in enumerate(taus):
+            metrics_b[i] = metrics_B_tau[tau][b]
+        metrics_B[b] = pd.DataFrame(metrics_b, columns=columns)
+    return metrics_B
+def bootstrap(p, intersection, mis, remaining, n_gt, B_ind):
+    metrics_B_tau = np.zeros((len(B_ind), 6), dtype='float')
+    for b, ind in enumerate(B_ind):
+        n_gt_b = n_gt[ind]
+        p_b = p[ind]
+        intersection_b = intersection[ind]
+        mis_b = mis[ind]
+        remaining_b = remaining[ind]
 
-def compute_metrics(pred, gt, tau_arr, toi, gt_exclude=None, ic_arr=None, n_cpu=0):
+        n_pred_b = p_b.sum(axis=1)  # TP + FP
+        n_intersection_b = intersection_b.sum(axis=1)  # TP
+
+        # Number of proteins with at least one term predicted with score >= tau
+        metrics_B_tau[b, 0] = (p_b.sum(axis=1) > 0).sum()
+
+        # Sum of confusion matrices
+        metrics_B_tau[b, 1] = n_intersection_b.sum()  # TP
+        metrics_B_tau[b, 2] = mis_b.sum(axis=1).sum()  # FP
+        metrics_B_tau[b, 3] = remaining_b.sum(axis=1).sum()  # FN
+
+        # Macro-averaging
+        metrics_B_tau[b, 4] = np.divide(n_intersection_b, n_pred_b, out=np.zeros_like(n_intersection_b, dtype='float'),
+                                  where=n_pred_b > 0).sum()  # Precision
+        metrics_B_tau[b, 5] = np.divide(n_intersection_b, n_gt_b, out=np.zeros_like(n_gt_b, dtype='float'),
+                                  where=n_gt_b > 0).sum()  # Recall
+
+    return metrics_B_tau
+
+def bootstrap_exclude(p_perprotein, intersection, mis, remaining, n_gt, B_ind):
+    metrics_B_tau = np.zeros((len(B_ind), 6), dtype='float')
+    for b, ind in enumerate(B_ind):
+        n_gt_b = n_gt[ind]
+
+        p_perprotein_b = [p_perprotein[p] for p in ind]
+        intersection_b = [intersection[p] for p in ind]
+        mis_b = [mis[p] for p in ind]
+        remaining_b = [remaining[p] for p in ind]
+
+        n_pred_b = np.array([p_i.sum() for p_i in p_perprotein_b])  # TP + FP
+        n_intersection_b = np.array([inter.sum() for inter in intersection_b])  # TP
+
+        # Sum of confusion matrices
+        metrics_B_tau[b, 1] = n_intersection_b.sum()  # TP
+        metrics_B_tau[b, 2] = np.sum([m.sum() for m in mis_b])  # FP
+        metrics_B_tau[b, 3] = np.sum([r.sum() for r in remaining_b])  # FN
+
+        # Macro-averaging
+        metrics_B_tau[b, 4] = np.divide(n_intersection_b, n_pred_b, out=np.zeros_like(n_intersection_b, dtype='float'),
+                                  where=n_pred_b > 0).sum()  # Precision
+        metrics_B_tau[b, 5] = np.divide(n_intersection_b, n_gt_b, out=np.zeros_like(n_gt_b, dtype='float'),
+                                  where=n_gt_b > 0).sum()  # Recall
+
+    return metrics_B_tau
+def compute_metrics(pred, gt, tau_arr, toi, gt_exclude=None, ic_arr=None, n_cpu=0, B_ind = None):
     """
     Takes the prediction and the ground truth and for each threshold in tau_arr
     calculates the confusion matrix and returns the coverage,
@@ -137,6 +215,7 @@ def compute_metrics(pred, gt, tau_arr, toi, gt_exclude=None, ic_arr=None, n_cpu=
     else:
         count_g = g
 
+
     # Simple metrics
     if ic_arr is None:
         n_gt = count_g.sum(axis=1)
@@ -145,15 +224,33 @@ def compute_metrics(pred, gt, tau_arr, toi, gt_exclude=None, ic_arr=None, n_cpu=
         n_gt = (count_g * ic_arr[toi]).sum(axis=1)
 
     if gt_exclude is None:
-        arg_lists = [[tau_arr, g, pred, toi, n_gt, ic_arr] for tau_arr in np.array_split(tau_arr, n_cpu)]
+        arg_lists = [[tau_arr, g, pred, toi, n_gt, ic_arr, B_ind] for tau_arr in np.array_split(tau_arr, n_cpu)]
         with mp.Pool(processes=n_cpu) as pool:
-            metrics = np.concatenate(pool.starmap(compute_confusion_matrix, arg_lists), axis=0)
+            #metrics = np.concatenate(pool.starmap(compute_confusion_matrix, arg_lists), axis=0)
+            results = pool.starmap(compute_confusion_matrix, arg_lists)
+            metrics = [results[i][0] for i in range(len(results))]
+            metrics = pd.DataFrame(np.concatenate(metrics), columns=columns)
+            metrics_B_tau = {}
+            if results[0][1]:  # If metrics from the bootstrapping were calculated
+                for thread in range(len(results)):
+                    for tau, metrics_b in results[thread][1].items():
+                        metrics_B_tau[tau] = metrics_b
+                metrics_B = get_metrics_B(metrics_B_tau)
     else:
-        arg_lists = [[tau_arr, gt_perprotein, pred, toi_perprotein, n_gt, ic_arr] for tau_arr in np.array_split(tau_arr, n_cpu)]
+        arg_lists = [[tau_arr, gt_perprotein, pred, toi_perprotein, n_gt, ic_arr, B_ind] for tau_arr in np.array_split(tau_arr, n_cpu)]
         with mp.Pool(processes=n_cpu) as pool:
-            metrics = np.concatenate(pool.starmap(compute_confusion_matrix_exclude, arg_lists), axis=0)
+            #metrics = np.concatenate(pool.starmap(compute_confusion_matrix_exclude, arg_lists), axis=0)
+            results = pool.starmap(compute_confusion_matrix_exclude, arg_lists)
+            metrics = [results[i][0] for i in range(len(results))]
+            metrics = pd.DataFrame(np.concatenate(metrics), columns=columns)
+            metrics_B_tau = {}
+            if results[0][1]:  # If metrics from the bootstrapping were calculated
+                for thread in range(len(results)):
+                    for tau, metrics_b in results[thread][1].items():
+                        metrics_B_tau[tau] = metrics_b
+                metrics_B = get_metrics_B(metrics_B_tau)
 
-    return pd.DataFrame(metrics, columns=columns)
+    return metrics, metrics_B
 
 
 def normalize(metrics, ns, tau_arr, ne, normalization):
@@ -191,10 +288,12 @@ def normalize(metrics, ns, tau_arr, ne, normalization):
     return metrics
 
 
-def evaluate_prediction(prediction, gt, ontologies, tau_arr, gt_exclude=None, normalization='cafa', n_cpu=0):
+def evaluate_prediction(prediction, gt, ontologies, tau_arr, gt_exclude=None, normalization='cafa', n_cpu=0, B = 0, B_pct = 0):
 
     dfs = []
     dfs_w = []
+    metrics_B_dfs = []
+    metrics_B_w_dfs = []
 
     # Unweighted metrics
     for ns in prediction:
@@ -213,31 +312,57 @@ def evaluate_prediction(prediction, gt, ontologies, tau_arr, gt_exclude=None, no
 
         ne = np.full(len(tau_arr), num_pred_prots)
 
-        dfs.append(normalize(compute_metrics(
-            prediction[ns], gt[ns], tau_arr, ontologies[ns].toi, exclude, None, n_cpu),
-                             ns, tau_arr, ne, normalization))
+        # Generate B sets of indices
+        B_ind = []
+        N = len(gt[ns].ids)  # Number of proteins
+        nB = 0
+        if B and B_pct > 0:
+            nB = round((B_pct / 100) * N)  # Number of proteins to be included in each bootstrap round
+            for b in range(B):
+                B_ind.append(random.choices(range(0, N), k=nB))
+
+        metrics, metrics_B = compute_metrics(prediction[ns], gt[ns], tau_arr, ontologies[ns].toi, exclude, None, n_cpu, B_ind = B_ind)
+        dfs.append(normalize(metrics, ns, tau_arr, ne, normalization))
+        metrics_B_df = []
+        if metrics_B:
+            for b in metrics_B.keys():
+                metrics_b = normalize(metrics_B[b], ns, tau_arr, ne, normalization)
+                metrics_b["b"] = b
+                metrics_B_df.append(metrics_b)
+            metrics_B_dfs.append(pd.concat(metrics_B_df)) # Concats dfs for each b iteration together
 
         # Weighted metrics
         if ontologies[ns].ia is not None:
             exclude = None if gt_exclude is None else gt_exclude[ns]
             ne = np.full(len(tau_arr), gt[ns].matrix[:, ontologies[ns].toi_ia].shape[0])
+            metrics_w, metrics_B_w = compute_metrics(prediction[ns], gt[ns], tau_arr, ontologies[ns].toi_ia, exclude, ontologies[ns].ia, n_cpu, B_ind = B_ind)
+            dfs_w.append(normalize(metrics_w, ns, tau_arr, ne, normalization))
+            metrics_B_w_df = []
+            if metrics_B_w:
+                for b in metrics_B_w.keys():
+                    metrics_b_w = normalize(metrics_B_w[b], ns, tau_arr, ne, normalization)
+                    metrics_b_w["b"] = b
+                    metrics_B_w_df.append(metrics_b_w)
+                metrics_B_w_dfs.append(pd.concat(metrics_B_w_df))  # Concats dfs for each b iteration together
 
-            dfs_w.append(normalize(
-                compute_metrics(prediction[ns], gt[ns], tau_arr, ontologies[ns].toi_ia, exclude, ontologies[ns].ia, n_cpu),
-                ns, tau_arr, ne, normalization))
-
-    dfs = pd.concat(dfs)
+    dfs = pd.concat(dfs) # Concats df from each ns
 
     # Merge weighted and unweighted dataframes
     if dfs_w:
         dfs_w = pd.concat(dfs_w)
         dfs = pd.merge(dfs, dfs_w, on=['ns', 'tau'], suffixes=('', '_w'))
 
-    return dfs
+    if metrics_B_dfs:
+        metrics_B_dfs = pd.concat(metrics_B_dfs)
+        if metrics_B_w_dfs:
+            metrics_B_w_dfs = pd.concat(metrics_B_w_dfs)
+            metrics_B_dfs = pd.merge(metrics_B_dfs, metrics_B_w_dfs, on=['ns', 'tau', 'b'], suffixes=('', '_w'))
+
+    return dfs, metrics_B_dfs
 
 
 def cafa_eval(obo_file, pred_dir, gt_file, ia=None, no_orphans=False, norm='cafa', prop='max',
-              exclude=None, toi_file=None, max_terms=None, th_step=0.01, n_cpu=1):
+              exclude=None, toi_file=None, max_terms=None, th_step=0.01, n_cpu=1, B = 0, B_pct = 50):
 
     # Tau array, used to compute metrics at different score thresholds
     tau_arr = np.arange(th_step, 1, th_step)
@@ -270,7 +395,7 @@ def cafa_eval(obo_file, pred_dir, gt_file, ia=None, no_orphans=False, norm='cafa
             logging.warning("Prediction: {}, not evaluated".format(file_name))
         else:
             df_pred = evaluate_prediction(prediction, gt, ontologies, tau_arr, gt_exclude,
-                                          normalization=norm, n_cpu=n_cpu)
+                                          normalization=norm, n_cpu=n_cpu, B = B, B_pct= B_pct)
             df_pred['filename'] = file_name.replace(pred_folder, '').replace('/', '_')
             dfs.append(df_pred)
             logging.info("Prediction: {}, evaluated".format(file_name))
