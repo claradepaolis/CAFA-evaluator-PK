@@ -68,7 +68,7 @@ def compute_confusion_matrix(tau_arr, g, pred, toi, n_gt, ic_arr=None, B_ind = N
         metrics[i, 5] = np.divide(n_intersection, n_gt, out=np.zeros_like(n_gt, dtype='float'), where=n_gt > 0).sum()  # Recall
 
         if B_ind is not None:
-            metrics_B_tau[i] = bootstrap(p, intersection, mis, remaining, n_gt, B_ind)
+            metrics_B_tau[tau] = bootstrap(p, intersection, mis, remaining, n_gt, B_ind)
     #if B_ind is not None:
     #    metrics_B = get_metrics_B(metrics_B_tau)
     return metrics, metrics_B_tau
@@ -394,9 +394,11 @@ def cafa_eval(obo_file, pred_dir, gt_file, ia=None, no_orphans=False, norm='cafa
         if not prediction:
             logging.warning("Prediction: {}, not evaluated".format(file_name))
         else:
-            df_pred = evaluate_prediction(prediction, gt, ontologies, tau_arr, gt_exclude,
+            df_pred, metrics_B_dfs = evaluate_prediction(prediction, gt, ontologies, tau_arr, gt_exclude,
                                           normalization=norm, n_cpu=n_cpu, B = B, B_pct= B_pct)
             df_pred['filename'] = file_name.replace(pred_folder, '').replace('/', '_')
+            if metrics_B_dfs:
+                metrics_B_dfs['filename'] = file_name.replace(pred_folder, '').replace('/', '_')
             dfs.append(df_pred)
             logging.info("Prediction: {}, evaluated".format(file_name))
 
