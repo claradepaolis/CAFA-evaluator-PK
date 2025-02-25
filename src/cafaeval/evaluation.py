@@ -389,22 +389,29 @@ def cafa_eval(obo_file, pred_dir, gt_file, ia=None, no_orphans=False, norm='cafa
 
     # Parse prediction files and perform evaluation
     dfs = []
+    metrics_B_dfs = []
     for file_name in pred_files:
         prediction = pred_parser(file_name, ontologies, gt, prop, max_terms)
         if not prediction:
             logging.warning("Prediction: {}, not evaluated".format(file_name))
         else:
-            df_pred, metrics_B_dfs = evaluate_prediction(prediction, gt, ontologies, tau_arr, gt_exclude,
+            df_pred, metrics_B_df_pred = evaluate_prediction(prediction, gt, ontologies, tau_arr, gt_exclude,
                                           normalization=norm, n_cpu=n_cpu, B = B, B_pct= B_pct)
             df_pred['filename'] = file_name.replace(pred_folder, '').replace('/', '_')
-            if metrics_B_dfs:
-                metrics_B_dfs['filename'] = file_name.replace(pred_folder, '').replace('/', '_')
             dfs.append(df_pred)
+            if isinstance(metrics_B_df_pred, pd.DataFrame):
+                metrics_B_df_pred['filename'] = file_name.replace(pred_folder, '').replace('/', '_')
+                metrics_B_dfs.append(metrics_B_df_pred)
             logging.info("Prediction: {}, evaluated".format(file_name))
 
     # Concatenate all dataframes and save them
     df = None
     dfs_best = {}
+    metrics_B_df = None
+    if metrics_B_dfs:
+        metrics_B_df = pd.concat(metrics_B_dfs)
+
+
     if dfs:
         df = pd.concat(dfs)
 
@@ -425,10 +432,10 @@ def cafa_eval(obo_file, pred_dir, gt_file, ia=None, no_orphans=False, norm='cafa
     else:
         logging.info("No predictions evaluated")
 
-    return df, dfs_best
+    return df, dfs_best, metrics_B_df
 
 
-def write_results(df, dfs_best, out_dir='results', th_step=0.01):
+def write_results(df, dfs_best, metrics_B_df, out_dir='results', th_step=0.01):
 
     # Create output folder here in order to store the log file
     out_folder = os.path.normpath(out_dir) + "/"
@@ -442,3 +449,8 @@ def write_results(df, dfs_best, out_dir='results', th_step=0.01):
 
     for metric in dfs_best:
         dfs_best[metric].to_csv('{}/evaluation_best_{}.tsv'.format(out_folder, metric), float_format="%.{}f".format(decimals), sep="\t")
+
+    if isinstance(metrics_B_df, pd.DataFrame):
+        metrics_B_df.to_csv('{}/Bootstrap_all.tsv'.format(out_folder), float_format="%.{}f".format(decimals), sep="\t")
+
+
