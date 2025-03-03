@@ -1,4 +1,4 @@
-from cafaeval.graph import Graph, Prediction, GroundTruth, propagate
+from graph import Graph, Prediction, GroundTruth, propagate
 import numpy as np
 import logging
 logging.getLogger(__name__).addHandler(logging.NullHandler())
@@ -195,7 +195,7 @@ def pred_parser(pred_file, ontologies, gts, prop_mode, max_terms=None):
         for term in ontologies[ns].terms_dict_alt:
             ns_dict[term] = ns
 
-    with (open(pred_file) as f):
+    with open(pred_file) as f:
         for line in f:
             line = line.strip().split()
             if line and len(line) > 2:
