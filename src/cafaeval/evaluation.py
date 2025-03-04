@@ -150,8 +150,8 @@ def bootstrap(p, intersection, mis, remaining, n_gt, B_ind):
         n_pred_b = p_b.sum(axis=1)  # TP + FP
         n_intersection_b = intersection_b.sum(axis=1)  # TP
 
-        # Number of proteins with at least one term predicted with score >= tau
-        metrics_B_tau[b, 0] = (p_b.sum(axis=1) > 0).sum()
+        # Number of proteins with at least one term predicted with score >= ta
+        metrics_B_tau[b, 0] = (n_pred_b > 0).sum()
 
         # Sum of confusion matrices
         metrics_B_tau[b, 1] = n_intersection_b.sum()  # TP
@@ -178,6 +178,9 @@ def bootstrap_exclude(p_perprotein, intersection, mis, remaining, n_gt, B_ind):
 
         n_pred_b = np.array([p_i.sum() for p_i in p_perprotein_b])  # TP + FP
         n_intersection_b = np.array([inter.sum() for inter in intersection_b])  # TP
+
+        # Number of proteins with at least one term predicted with score >= tau
+        metrics_B_tau[b, 0] = (n_pred_b > 0).sum()
 
         # Sum of confusion matrices
         metrics_B_tau[b, 1] = n_intersection_b.sum()  # TP

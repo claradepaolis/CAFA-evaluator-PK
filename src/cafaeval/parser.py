@@ -176,7 +176,6 @@ def gt_exclude_parser(exclude_file, gt, ontologies):
         exclude[ns] = GroundTruth(gt[ns].ids, exclude_matrix, ns)
     return exclude
 
-
 def pred_parser(pred_file, ontologies, gts, prop_mode, max_terms=None):
     """
     Parse a prediction file and returns a list of prediction objects, one for each namespace.
