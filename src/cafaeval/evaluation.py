@@ -110,6 +110,7 @@ def compute_confusion_matrix_exclude(tau_arr, g_perprotein, pred_matrix, toi_per
         metrics[i, 4] = np.divide(n_intersection, n_pred, out=np.zeros_like(n_intersection, dtype='float'), where=n_pred > 0).sum()  # Precision
         metrics[i, 5] = np.divide(n_intersection, n_gt, out=np.zeros_like(n_gt, dtype='float'), where=n_gt > 0).sum()  # Recall
 
+    print("metrics calculated")
     return metrics
 
 
@@ -157,6 +158,7 @@ def compute_metrics(pred, gt_matrix, tau_arr, toi, gt_exclude=None, ic_arr=None,
         with mp.Pool(processes=n_cpu) as pool:
             metrics = np.concatenate(pool.starmap(compute_confusion_matrix_exclude, arg_lists), axis=0)
 
+    print("Jobs on all CPUs completed.")
     return pd.DataFrame(metrics, columns=columns)
 
 
