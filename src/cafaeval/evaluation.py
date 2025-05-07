@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import multiprocessing as mp
 from parser import obo_parser, gt_parser, pred_parser, gt_exclude_parser, update_toi
+from tests import test_norm_metric, test_intersection
 import logging
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 
@@ -49,14 +50,13 @@ def compute_confusion_matrix(tau_arr, g, pred_matrix, toi, n_gt, ic_arr=None):
             mis = mis * ic_arr[toi]  # FP, predicted but not in the ground truth
             remaining = remaining * ic_arr[toi]  # FN, not predicted but in the ground truth
 
-        n_pred = p.sum(axis=1)  # TP + FP
-        n_intersection = intersection.sum(axis=1)  # TP
-
+        n_pred = p.sum(axis=1)  # TP + FP (number of terms predicted in each protein)
+        n_intersection = intersection.sum(axis=1)  # TP (number of TP terms per protein)
         # Number of proteins with at least one term predicted with score >= tau
         metrics[i, 0] = (p.sum(axis=1) > 0).sum()
 
         # Sum of confusion matrices
-        metrics[i, 1] = n_intersection.sum()  # TP
+        metrics[i, 1] = n_intersection.sum()  # TP (total terms)
         metrics[i, 2] = mis.sum(axis=1).sum()  # FP
         metrics[i, 3] = remaining.sum(axis=1).sum()  # FN
 
@@ -97,6 +97,14 @@ def compute_confusion_matrix_exclude(tau_arr, g_perprotein, pred_matrix, toi_per
 
         n_pred = np.array([p_i.sum() for p_i in p_perprotein])  # TP + FP
         n_intersection = np.array([inter.sum() for inter in intersection])  # TP
+        precision = np.divide(n_intersection, n_pred, out=np.zeros_like(n_intersection, dtype='float'), where=n_pred > 0)
+        recall = np.divide(n_intersection, n_gt, out=np.zeros_like(n_gt, dtype='float'), where=n_gt > 0)
+
+        # metrics tests
+        test_norm_metric(precision, name='precision')
+        test_norm_metric(recall, name='recall')
+        test_intersection(n_intersection, n_pred, n_gt)
+
 
         # Number of proteins with at least one term predicted with score >= tau
         metrics[i, 0] = (n_pred > 0).sum()
@@ -107,8 +115,8 @@ def compute_confusion_matrix_exclude(tau_arr, g_perprotein, pred_matrix, toi_per
         metrics[i, 3] = np.sum([r.sum() for r in remaining])  # FN
 
         # Macro-averaging
-        metrics[i, 4] = np.divide(n_intersection, n_pred, out=np.zeros_like(n_intersection, dtype='float'), where=n_pred > 0).sum()  # Precision
-        metrics[i, 5] = np.divide(n_intersection, n_gt, out=np.zeros_like(n_gt, dtype='float'), where=n_gt > 0).sum()  # Recall
+        metrics[i, 4] = precision.sum()  # Precision
+        metrics[i, 5] = recall.sum()  # Recall
 
     print("metrics calculated")
     return metrics
@@ -137,17 +145,20 @@ def compute_metrics(pred, gt_matrix, tau_arr, toi, gt_exclude=None, ic_arr=None,
                           range(g.shape[0])]
         gt_perprotein = [gt_with_annots[p_idx, tois] for p_idx, tois in enumerate(toi_perprotein)]
         # The number of GT annotations per proteins will change to exclude the set from g_exclude
-        count_g = np.logical_and(np.logical_not(g_exclude), g)  # count terms in g only if they are not in exclude list
-
+        # count_g = np.logical_and(np.logical_not(g_exclude), g)  # count terms in g only if they are not in exclude list
+        n_gt = np.array([gpp.sum().item() for gpp in gt_perprotein])  # number of terms annotated in each protein
+        if np.any(n_gt==0):
+            print(f'Proteins with no annotations in TOI {np.count_nonzero(n_gt==0)}')
+        if ic_arr is not None:
+            n_gt = np.array([(gpp * ic_arr[tois]).sum().item() for gpp, tois in zip(gt_perprotein, toi_perprotein)])
     else:
         count_g = g
-
-    # Simple metrics: number of terms annotated in each protein
-    if ic_arr is None:
-        n_gt = count_g.sum(axis=1)
-    # Weighted metrics
-    else:
-        n_gt = (count_g * ic_arr[toi]).sum(axis=1)
+        # Simple metrics: number of terms annotated in each protein
+        if ic_arr is None:
+            n_gt = count_g.sum(axis=1)
+        # Weighted metrics
+        else:
+            n_gt = (count_g * ic_arr[toi]).sum(axis=1)
 
     if gt_exclude is None:
         arg_lists = [[tau_arr, g, p, toi, n_gt, ic_arr] for tau_arr in np.array_split(tau_arr, n_cpu)]
