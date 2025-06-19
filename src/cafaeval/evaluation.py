@@ -135,14 +135,17 @@ def compute_metrics(pred, gt_matrix, tau_arr, toi, gt_exclude=None, ic_arr=None,
 
     columns = ["n", "tp", "fp", "fn", "pr", "rc"]
     # filter out proteins with no annotations in Terms-Of-Interest (toi)
-    gt_with_annots = gt_matrix[gt_matrix[:, toi].sum(1) > 0, :]
+    proteins_has_gt = gt_matrix[:, toi].sum(1) > 0
+    proteins_with_gt = np.where(proteins_has_gt)[0]
+    gt_with_annots = gt_matrix[proteins_with_gt, :]
     g = gt_with_annots[:, toi]
     p = pred[gt_matrix[:,toi].sum(1)>0, :][:, toi]
 
     if gt_exclude is not None:
-        g_exclude = gt_exclude.matrix[gt_matrix[:,toi].sum(1)>0, :][:, toi]
-        toi_perprotein = [np.setdiff1d(toi, g_exclude[p, :].nonzero()[0], assume_unique=True) for p in
-                          range(g.shape[0])]
+        g_exclude = gt_exclude.matrix[proteins_with_gt, :][:, toi]
+        toi_perprotein = [np.setdiff1d(toi, g_exclude[p, :].nonzero()[0],
+                                       assume_unique=True) for p in
+                          proteins_with_gt] # only include proteins with annotations
         gt_perprotein = [gt_with_annots[p_idx, tois] for p_idx, tois in enumerate(toi_perprotein)]
         # The number of GT annotations per proteins will change to exclude the set from g_exclude
         # count_g = np.logical_and(np.logical_not(g_exclude), g)  # count terms in g only if they are not in exclude list
@@ -215,18 +218,20 @@ def evaluate_prediction(prediction, gt, ontologies, tau_arr, gt_exclude=None, no
 
     # Unweighted metrics
     for ns in prediction:
+        # number of proteins with positive annotations
+        proteins_has_gt = gt[ns].matrix[:, ontologies[ns].toi].sum(1) > 0
+        proteins_with_gt = np.where(proteins_has_gt)[0]
+        num_annot_prots = proteins_has_gt.sum()  # number of proteins with positive annotations in TOIs
         if gt_exclude is None:
             exclude = None
-            # number of proteins with positive annotations
-            num_annot_prots = (gt[ns].matrix[:, ontologies[ns].toi].sum(1) > 0).sum()
         else:
             exclude = gt_exclude[ns]
-            # number of proteins with positive annotations
-            num_proteins = gt[ns].matrix.shape[0]
             toi_perprotein = [
-                np.setdiff1d(ontologies[ns].toi, gt_exclude[ns].matrix[p, :].nonzero()[0], assume_unique=True) for p in
-                range(num_proteins)]
-            num_annot_prots = sum([gt[ns].matrix[p, toi_perprotein[p]].sum()>0 for p in range(num_proteins)])
+                np.setdiff1d(ontologies[ns].toi, gt_exclude[ns].matrix[p, :].nonzero()[0],
+                             assume_unique=True) for p in proteins_with_gt]
+            # update the number of proteins with positive annotations, now on protein-specific TOIs
+            num_annot_prots = sum([gt[ns].matrix[p, toi_perprotein[p_idx]].sum()>0 for
+                                   p_idx, p in enumerate(proteins_with_gt)])
 
         ne = np.full(len(tau_arr), num_annot_prots)
 
@@ -236,14 +241,26 @@ def evaluate_prediction(prediction, gt, ontologies, tau_arr, gt_exclude=None, no
 
         # Weighted metrics
         if ontologies[ns].ia is not None:
-            exclude = None if gt_exclude is None else gt_exclude[ns]
 
             # number of proteins with positive annotations
-            num_annot_prots = (gt[ns].matrix[:, ontologies[ns].toi_ia].sum(1) > 0).sum()
+            proteins_has_gt = gt[ns].matrix[:, ontologies[ns].toi_ia].sum(1) > 0
+            num_annot_prots = (proteins_has_gt).sum()
+
+            if gt_exclude is None:
+                exclude = None
+            else:
+                exclude = gt_exclude[ns]
+                toi_perprotein_ia = [
+                    np.setdiff1d(ontologies[ns].toi_ia, gt_exclude[ns].matrix[p, :].nonzero()[0],
+                                 assume_unique=True) for p in proteins_with_gt]
+                # update the number of proteins with positive annotations, now on protein-specific TOIs
+                num_annot_prots = sum([gt[ns].matrix[p, toi_perprotein_ia[p_idx]].sum() > 0 for
+                                       p_idx, p in enumerate(proteins_with_gt)])
+
             ne = np.full(len(tau_arr), num_annot_prots)
 
-            dfs_w.append(normalize(
-                compute_metrics(prediction[ns].matrix, gt[ns].matrix, tau_arr, ontologies[ns].toi_ia, exclude, ontologies[ns].ia, n_cpu),
+            dfs_w.append(normalize(compute_metrics(
+                prediction[ns].matrix, gt[ns].matrix, tau_arr, ontologies[ns].toi_ia, exclude, ontologies[ns].ia, n_cpu),
                 ns, tau_arr, ne, normalization))
 
     dfs = pd.concat(dfs)
