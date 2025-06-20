@@ -139,11 +139,11 @@ def compute_metrics(pred, gt_matrix, tau_arr, toi, gt_exclude=None, ic_arr=None,
     proteins_with_gt = np.where(proteins_has_gt)[0]
     gt_with_annots = gt_matrix[proteins_with_gt, :]
     g = gt_with_annots[:, toi]
-    p = pred[gt_matrix[:,toi].sum(1)>0, :][:, toi]
+    p = pred[proteins_has_gt, :][:, toi]
 
     if gt_exclude is not None:
         g_exclude = gt_exclude.matrix[proteins_with_gt, :][:, toi]
-        toi_perprotein = [np.setdiff1d(toi, g_exclude[p, :].nonzero()[0],
+        toi_perprotein = [np.setdiff1d(toi, gt_exclude[p, :].nonzero()[0],
                                        assume_unique=True) for p in
                           proteins_with_gt] # only include proteins with annotations
         gt_perprotein = [gt_with_annots[p_idx, tois] for p_idx, tois in enumerate(toi_perprotein)]
