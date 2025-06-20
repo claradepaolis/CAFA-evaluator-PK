@@ -142,8 +142,8 @@ def compute_metrics(pred, gt_matrix, tau_arr, toi, gt_exclude=None, ic_arr=None,
     p = pred[proteins_has_gt, :][:, toi]
 
     if gt_exclude is not None:
-        g_exclude = gt_exclude.matrix[proteins_with_gt, :][:, toi]
-        toi_perprotein = [np.setdiff1d(toi, gt_exclude[p, :].nonzero()[0],
+        # g_exclude = gt_exclude.matrix[proteins_with_gt, :][:, toi]
+        toi_perprotein = [np.setdiff1d(toi, gt_exclude.matrix[p, :].nonzero()[0],
                                        assume_unique=True) for p in
                           proteins_with_gt] # only include proteins with annotations
         gt_perprotein = [gt_with_annots[p_idx, tois] for p_idx, tois in enumerate(toi_perprotein)]
