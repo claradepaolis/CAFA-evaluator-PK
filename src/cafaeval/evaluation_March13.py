@@ -305,6 +305,7 @@ def cafa_eval(obo_file, pred_dir, gt_file, ia=None, no_orphans=False, norm='cafa
 
 def write_results(df, dfs_best, out_dir='results', th_step=0.01):
 
+    print("OLD FILE")
     # Create output folder here in order to store the log file
     out_folder = os.path.normpath(out_dir) + "/"
     if not os.path.isdir(out_folder):
