@@ -4,6 +4,7 @@ import pandas as pd
 import multiprocessing as mp
 import random
 from parser import obo_parser, gt_parser, pred_parser, gt_exclude_parser, update_toi
+from tests import test_norm_metric, test_intersection
 import logging
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 
@@ -25,7 +26,7 @@ def compute_s(ru, mi):
     # return np.where(np.isnan(ru), mi, np.sqrt(ru + np.nan_to_num(mi)))
 
 
-def compute_confusion_matrix(tau_arr, g, pred, toi, n_gt, ic_arr=None, B_ind = None):
+def compute_confusion_matrix(tau_arr, g, pred_matrix, toi, n_gt, ic_arr=None, B_ind = None):
     """
     Perform the evaluation at the matrix level for all tau thresholds
     The calculation is
@@ -38,7 +39,7 @@ def compute_confusion_matrix(tau_arr, g, pred, toi, n_gt, ic_arr=None, B_ind = N
     for i, tau in enumerate(tau_arr):
 
         # Filter predictions based on tau threshold
-        p = solidify_prediction(pred.matrix[:, toi], tau)
+        p = solidify_prediction(pred_matrix, tau)
 
         # Terms subsets
         intersection = np.logical_and(p, g)  # TP
@@ -52,14 +53,13 @@ def compute_confusion_matrix(tau_arr, g, pred, toi, n_gt, ic_arr=None, B_ind = N
             mis = mis * ic_arr[toi]  # FP, predicted but not in the ground truth
             remaining = remaining * ic_arr[toi]  # FN, not predicted but in the ground truth
 
-        n_pred = p.sum(axis=1)  # TP + FP
-        n_intersection = intersection.sum(axis=1)  # TP
-
+        n_pred = p.sum(axis=1)  # TP + FP (number of terms predicted in each protein)
+        n_intersection = intersection.sum(axis=1)  # TP (number of TP terms per protein)
         # Number of proteins with at least one term predicted with score >= tau
         metrics[i, 0] = (p.sum(axis=1) > 0).sum()
 
         # Sum of confusion matrices
-        metrics[i, 1] = n_intersection.sum()  # TP
+        metrics[i, 1] = n_intersection.sum()  # TP (total terms)
         metrics[i, 2] = mis.sum(axis=1).sum()  # FP
         metrics[i, 3] = remaining.sum(axis=1).sum()  # FN
 
@@ -73,7 +73,8 @@ def compute_confusion_matrix(tau_arr, g, pred, toi, n_gt, ic_arr=None, B_ind = N
     #    metrics_B = get_metrics_B(metrics_B_tau)
     return metrics, metrics_B_tau
 
-def compute_confusion_matrix_exclude(tau_arr, g_perprotein, pred, toi_perprotein, n_gt, ic_arr=None, B_ind = None):
+
+def compute_confusion_matrix_exclude(tau_arr, g_perprotein, pred_matrix, toi_perprotein, n_gt, ic_arr=None, B_ind = None):
     """
     Perform the evaluation at the matrix level for all tau thresholds
     The calculation is
@@ -89,7 +90,7 @@ def compute_confusion_matrix_exclude(tau_arr, g_perprotein, pred, toi_perprotein
     for i, tau in enumerate(tau_arr):
 
         # Filter predictions based on tau threshold
-        p_perprotein = [solidify_prediction(pred.matrix[p_idx, tois], tau) for p_idx, tois in enumerate(toi_perprotein)]
+        p_perprotein = [solidify_prediction(pred_matrix[p_idx, tois], tau) for p_idx, tois in enumerate(toi_perprotein)]
 
         # Terms subsets
         intersection = [np.logical_and(p_i, g_i) for p_i, g_i in zip(p_perprotein, g_perprotein)]  # TP
@@ -105,6 +106,14 @@ def compute_confusion_matrix_exclude(tau_arr, g_perprotein, pred, toi_perprotein
 
         n_pred = np.array([p_i.sum() for p_i in p_perprotein])  # TP + FP
         n_intersection = np.array([inter.sum() for inter in intersection])  # TP
+        precision = np.divide(n_intersection, n_pred, out=np.zeros_like(n_intersection, dtype='float'), where=n_pred > 0)
+        recall = np.divide(n_intersection, n_gt, out=np.zeros_like(n_gt, dtype='float'), where=n_gt > 0)
+
+        # metrics tests
+        test_norm_metric(precision, name='precision')
+        test_norm_metric(recall, name='recall')
+        test_intersection(n_intersection, n_pred, n_gt)
+
 
         # Number of proteins with at least one term predicted with score >= tau
         metrics[i, 0] = (n_pred > 0).sum()
@@ -138,6 +147,7 @@ def get_metrics_B(metrics_B_tau):
             metrics_b[i] = metrics_B_tau[tau][b]
         metrics_B[b] = pd.DataFrame(metrics_b, columns=columns)
     return metrics_B
+
 def bootstrap(p, intersection, mis, remaining, n_gt, B_ind):
     metrics_B_tau = np.zeros((len(B_ind), 6), dtype='float')
     for b, ind in enumerate(B_ind):
@@ -165,6 +175,7 @@ def bootstrap(p, intersection, mis, remaining, n_gt, B_ind):
                                   where=n_gt_b > 0).sum()  # Recall
 
     return metrics_B_tau
+
 
 def bootstrap_exclude(p_perprotein, intersection, mis, remaining, n_gt, B_ind):
     metrics_B_tau = np.zeros((len(B_ind), 6), dtype='float')
@@ -194,7 +205,8 @@ def bootstrap_exclude(p_perprotein, intersection, mis, remaining, n_gt, B_ind):
                                   where=n_gt_b > 0).sum()  # Recall
 
     return metrics_B_tau
-def compute_metrics(pred, gt, tau_arr, toi, gt_exclude=None, ic_arr=None, n_cpu=0, B_ind = None):
+
+def compute_metrics(pred, gt_matrix, tau_arr, toi, gt_exclude=None, ic_arr=None, n_cpu=0, B_ind = None):
     """
     Takes the prediction and the ground truth and for each threshold in tau_arr
     calculates the confusion matrix and returns the coverage,
@@ -206,28 +218,39 @@ def compute_metrics(pred, gt, tau_arr, toi, gt_exclude=None, ic_arr=None, n_cpu=
         n_cpu = mp.cpu_count()
 
     columns = ["n", "tp", "fp", "fn", "pr", "rc"]
-    g = gt.matrix[:, toi]
+    # filter out proteins with no annotations in Terms-Of-Interest (toi)
+    proteins_has_gt = gt_matrix[:, toi].sum(1) > 0
+    proteins_with_gt = np.where(proteins_has_gt)[0]
+    gt_with_annots = gt_matrix[proteins_with_gt, :]
+    g = gt_with_annots[:, toi]
+    p = pred[proteins_has_gt, :][:, toi]
 
     if gt_exclude is not None:
-        g_exclude = gt_exclude.matrix[:, toi]
-        toi_perprotein = [np.setdiff1d(toi, gt_exclude.matrix[p, :].nonzero()[0], assume_unique=True) for p in
-                          range(g.shape[0])]
-        gt_perprotein = [gt.matrix[p_idx, tois] for p_idx, tois in enumerate(toi_perprotein)]
+        # g_exclude = gt_exclude.matrix[proteins_with_gt, :][:, toi]
+        toi_perprotein = [np.setdiff1d(toi, gt_exclude.matrix[p, :].nonzero()[0],
+                                       assume_unique=True) for p in
+                          proteins_with_gt] # only include proteins with annotations
+        gt_perprotein = [gt_with_annots[p_idx, tois] for p_idx, tois in enumerate(toi_perprotein)]
         # The number of GT annotations per proteins will change to exclude the set from g_exclude
-        count_g = np.logical_and(np.logical_not(g_exclude), g)  # count terms in g only if they are not in exclude list
+        # count_g = np.logical_and(np.logical_not(g_exclude), g)  # count terms in g only if they are not in exclude list
+        n_gt = np.array([gpp.sum().item() for gpp in gt_perprotein])  # number of terms annotated in each protein
+        if np.any(n_gt==0):
+            print(f'Proteins with no annotations in TOI {np.count_nonzero(n_gt==0)}')
+        if ic_arr is not None:
+            n_gt = np.array([(gpp * ic_arr[tois]).sum().item() for gpp, tois in zip(gt_perprotein, toi_perprotein)])
     else:
         count_g = g
 
-
-    # Simple metrics
-    if ic_arr is None:
-        n_gt = count_g.sum(axis=1)
-    # Weighted metrics
-    else:
-        n_gt = (count_g * ic_arr[toi]).sum(axis=1)
+        # Simple metrics
+        if ic_arr is None:
+            n_gt = count_g.sum(axis=1)
+        # Weighted metrics
+        else:
+            n_gt = (count_g * ic_arr[toi]).sum(axis=1)
 
     if gt_exclude is None:
-        arg_lists = [[tau_arr, g, pred, toi, n_gt, ic_arr, B_ind] for tau_arr in np.array_split(tau_arr, n_cpu)]
+        arg_lists = [[tau_arr, g, p, toi, n_gt, ic_arr, B_ind] for tau_arr in np.array_split(tau_arr, n_cpu)]
+
         with mp.Pool(processes=n_cpu) as pool:
             #metrics = np.concatenate(pool.starmap(compute_confusion_matrix, arg_lists), axis=0)
             results = pool.starmap(compute_confusion_matrix, arg_lists)
@@ -240,7 +263,7 @@ def compute_metrics(pred, gt, tau_arr, toi, gt_exclude=None, ic_arr=None, n_cpu=
                         metrics_B_tau[tau] = metrics_b
                 metrics_B = get_metrics_B(metrics_B_tau)
     else:
-        arg_lists = [[tau_arr, gt_perprotein, pred, toi_perprotein, n_gt, ic_arr, B_ind] for tau_arr in np.array_split(tau_arr, n_cpu)]
+        arg_lists = [[tau_arr, gt_perprotein, pred[gt_matrix[:,toi].sum(1)>0, :], toi_perprotein, n_gt, ic_arr, B_ind] for tau_arr in np.array_split(tau_arr, n_cpu)]
         with mp.Pool(processes=n_cpu) as pool:
             #metrics = np.concatenate(pool.starmap(compute_confusion_matrix_exclude, arg_lists), axis=0)
             results = pool.starmap(compute_confusion_matrix_exclude, arg_lists)
@@ -253,7 +276,9 @@ def compute_metrics(pred, gt, tau_arr, toi, gt_exclude=None, ic_arr=None, n_cpu=
                         metrics_B_tau[tau] = metrics_b
                 metrics_B = get_metrics_B(metrics_B_tau)
 
+    print("Jobs on all CPUs completed.")
     return metrics, metrics_B
+
 
 
 def normalize(metrics, ns, tau_arr, ne, normalization):
@@ -300,20 +325,22 @@ def evaluate_prediction(prediction, gt, ontologies, tau_arr, gt_exclude=None, no
 
     # Unweighted metrics
     for ns in prediction:
+        # number of proteins with positive annotations
+        proteins_has_gt = gt[ns].matrix[:, ontologies[ns].toi].sum(1) > 0
+        proteins_with_gt = np.where(proteins_has_gt)[0]
+        num_annot_prots = proteins_has_gt.sum()  # number of proteins with positive annotations in TOIs
         if gt_exclude is None:
             exclude = None
-            # number of proteins with positive predicitons
-            num_pred_prots = (gt[ns].matrix[:, ontologies[ns].toi].sum(1) > 0).sum()
         else:
             exclude = gt_exclude[ns]
-            # number of proteins with positive predicitons
-            num_proteins = gt[ns].matrix.shape[0]
             toi_perprotein = [
-                np.setdiff1d(ontologies[ns].toi, gt_exclude[ns].matrix[p, :].nonzero()[0], assume_unique=True) for p in
-                range(num_proteins)]
-            num_pred_prots = sum([gt[ns].matrix[p, toi_perprotein[p]].sum()>0 for p in range(num_proteins)])
+                np.setdiff1d(ontologies[ns].toi, gt_exclude[ns].matrix[p, :].nonzero()[0],
+                             assume_unique=True) for p in proteins_with_gt]
+            # update the number of proteins with positive annotations, now on protein-specific TOIs
+            num_annot_prots = sum([gt[ns].matrix[p, toi_perprotein[p_idx]].sum()>0 for
+                                   p_idx, p in enumerate(proteins_with_gt)])
 
-        ne = np.full(len(tau_arr), num_pred_prots)
+        ne = np.full(len(tau_arr), num_annot_prots)
 
         # Generate B sets of indices
         B_ind = []
@@ -324,7 +351,7 @@ def evaluate_prediction(prediction, gt, ontologies, tau_arr, gt_exclude=None, no
             for b in range(B):
                 B_ind.append(random.choices(range(0, N), k=nB))
 
-        metrics, metrics_B = compute_metrics(prediction[ns], gt[ns], tau_arr, ontologies[ns].toi, exclude, None, n_cpu, B_ind = B_ind)
+        metrics, metrics_B = compute_metrics(prediction[ns].matrix, gt[ns].matrix, tau_arr, ontologies[ns].toi, exclude, None, n_cpu, B_ind = B_ind)
         dfs.append(normalize(metrics, ns, tau_arr, ne, normalization))
         metrics_B_df = []
         if metrics_B:
@@ -336,9 +363,23 @@ def evaluate_prediction(prediction, gt, ontologies, tau_arr, gt_exclude=None, no
 
         # Weighted metrics
         if ontologies[ns].ia is not None:
-            exclude = None if gt_exclude is None else gt_exclude[ns]
-            ne = np.full(len(tau_arr), gt[ns].matrix[:, ontologies[ns].toi_ia].shape[0])
-            metrics_w, metrics_B_w = compute_metrics(prediction[ns], gt[ns], tau_arr, ontologies[ns].toi_ia, exclude, ontologies[ns].ia, n_cpu, B_ind = B_ind)
+            # number of proteins with positive annotations
+            proteins_has_gt = gt[ns].matrix[:, ontologies[ns].toi_ia].sum(1) > 0
+            num_annot_prots = (proteins_has_gt).sum()
+
+            if gt_exclude is None:
+                exclude = None
+            else:
+                exclude = gt_exclude[ns]
+                toi_perprotein_ia = [
+                    np.setdiff1d(ontologies[ns].toi_ia, gt_exclude[ns].matrix[p, :].nonzero()[0],
+                                 assume_unique=True) for p in proteins_with_gt]
+                # update the number of proteins with positive annotations, now on protein-specific TOIs
+                num_annot_prots = sum([gt[ns].matrix[p, toi_perprotein_ia[p_idx]].sum() > 0 for
+                                       p_idx, p in enumerate(proteins_with_gt)])
+
+            ne = np.full(len(tau_arr), num_annot_prots)
+            metrics_w, metrics_B_w = compute_metrics(prediction[ns].matrix, gt[ns].matrix, tau_arr, ontologies[ns].toi_ia, exclude, ontologies[ns].ia, n_cpu, B_ind = B_ind)
             dfs_w.append(normalize(metrics_w, ns, tau_arr, ne, normalization))
             metrics_B_w_df = []
             if metrics_B_w:
@@ -394,6 +435,7 @@ def cafa_eval(obo_file, pred_dir, gt_file, ia=None, no_orphans=False, norm='cafa
     dfs = []
     metrics_B_dfs = []
     for file_name in pred_files:
+        print(file_name)
         prediction = pred_parser(file_name, ontologies, gt, prop, max_terms)
         if not prediction:
             logging.warning("Prediction: {}, not evaluated".format(file_name))
@@ -455,5 +497,6 @@ def write_results(df, dfs_best, metrics_B_df, out_dir='results', th_step=0.01):
 
     if isinstance(metrics_B_df, pd.DataFrame):
         metrics_B_df.to_csv('{}/Bootstrap_all.tsv'.format(out_folder), float_format="%.{}f".format(decimals), sep="\t")
+
 
 

@@ -1,4 +1,5 @@
 src/__pycache__/
+src/cafaeval/__pycache__/
 eval/
 process_df.ipynb
 ia.ipynb
