@@ -31,7 +31,9 @@ def compute_confusion_matrix(tau_arr, g, pred_matrix, toi, n_gt, ic_arr=None):
     The calculation is
     """
     # n, tp, fp, fn, pr, rc (fp = misinformation, fn = remaining uncertainty)
-    metrics = np.zeros((len(tau_arr), 6), dtype='float')
+    metrics_all_dfs = []  #  Metrics per protein, one df for each threshold, before aggregation
+    metrics_agg = np.zeros((len(tau_arr), 6), dtype='float') # metrics per tau, aggregated over all the proteins
+
 
     for i, tau in enumerate(tau_arr):
 
@@ -53,18 +55,21 @@ def compute_confusion_matrix(tau_arr, g, pred_matrix, toi, n_gt, ic_arr=None):
         n_pred = p.sum(axis=1)  # TP + FP (number of terms predicted in each protein)
         n_intersection = intersection.sum(axis=1)  # TP (number of TP terms per protein)
         # Number of proteins with at least one term predicted with score >= tau
-        metrics[i, 0] = (p.sum(axis=1) > 0).sum()
+        metrics_agg[i, 0] = (p.sum(axis=1) > 0).sum()
 
         # Sum of confusion matrices
-        metrics[i, 1] = n_intersection.sum()  # TP (total terms)
-        metrics[i, 2] = mis.sum(axis=1).sum()  # FP
-        metrics[i, 3] = remaining.sum(axis=1).sum()  # FN
+        metrics_agg[i, 1] = n_intersection.sum()  # TP (total terms)
+        metrics_agg[i, 2] = mis.sum(axis=1).sum()  # FP
+        metrics_agg[i, 3] = remaining.sum(axis=1).sum()  # FN
 
         # Macro-averaging
-        metrics[i, 4] = np.divide(n_intersection, n_pred, out=np.zeros_like(n_intersection, dtype='float'), where=n_pred > 0).sum()  # Precision
-        metrics[i, 5] = np.divide(n_intersection, n_gt, out=np.zeros_like(n_gt, dtype='float'), where=n_gt > 0).sum()  # Recall
+        metrics_agg[i, 4] = np.divide(n_intersection, n_pred, out=np.zeros_like(n_intersection, dtype='float'), where=n_pred > 0).sum()  # Precision
+        metrics_agg[i, 5] = np.divide(n_intersection, n_gt, out=np.zeros_like(n_gt, dtype='float'), where=n_gt > 0).sum()  # Recall
 
-    return metrics
+        metrics_all_dfs.append(pd.DataFrame({'n_pred': n_pred, 'TP': n_intersection, 'FP': mis.sum(axis=1), 'FN': remaining.sum(axis=1), 'n_gt': n_gt}))
+
+    metrics_all_dfs = [df.add_suffix(f'_{i + 1}') for i, df in enumerate(metrics_all_dfs)]
+    return metrics_agg, pd.concat(metrics_all_dfs, axis = 1)
 
 
 def compute_confusion_matrix_exclude(tau_arr, g_perprotein, pred_matrix, toi_perprotein, n_gt, ic_arr=None):
@@ -166,7 +171,9 @@ def compute_metrics(pred, gt_matrix, tau_arr, toi, gt_exclude=None, ic_arr=None,
     if gt_exclude is None:
         arg_lists = [[tau_arr, g, p, toi, n_gt, ic_arr] for tau_arr in np.array_split(tau_arr, n_cpu)]
         with mp.Pool(processes=n_cpu) as pool:
-            metrics = np.concatenate(pool.starmap(compute_confusion_matrix, arg_lists), axis=0)
+            results = pool.starmap(compute_confusion_matrix, arg_lists)
+            metrics = [results[i][0] for i in range(len(results))]
+
     else:
         arg_lists = [[tau_arr, gt_perprotein, pred[gt_matrix[:,toi].sum(1)>0, :], toi_perprotein, n_gt, ic_arr] for tau_arr in np.array_split(tau_arr, n_cpu)]
         with mp.Pool(processes=n_cpu) as pool:
@@ -211,7 +218,7 @@ def normalize(metrics, ns, tau_arr, ne, normalization):
     return metrics
 
 
-def evaluate_prediction(prediction, gt, ontologies, tau_arr, gt_exclude=None, normalization='cafa', n_cpu=0):
+def evaluate_prediction(prediction, gt, ontologies, tau_arr, gt_exclude=None, normalization='cafa', n_cpu=0, B = 0, B_pct = 0):
 
     dfs = []
     dfs_w = []
@@ -274,7 +281,7 @@ def evaluate_prediction(prediction, gt, ontologies, tau_arr, gt_exclude=None, no
 
 
 def cafa_eval(obo_file, pred_dir, gt_file, ia=None, no_orphans=False, norm='cafa', prop='max',
-              exclude=None, toi_file=None, max_terms=None, th_step=0.01, n_cpu=1):
+              exclude=None, toi_file=None, max_terms=None, th_step=0.01, n_cpu=1, B = 0, B_pct = 50):
 
     # Tau array, used to compute metrics at different score thresholds
     tau_arr = np.arange(th_step, 1, th_step)
@@ -301,21 +308,29 @@ def cafa_eval(obo_file, pred_dir, gt_file, ia=None, no_orphans=False, norm='cafa
 
     # Parse prediction files and perform evaluation
     dfs = []
+    metrics_B_dfs = []
     for file_name in pred_files:
         print(file_name)
         prediction = pred_parser(file_name, ontologies, gt, prop, max_terms)
         if not prediction:
             logging.warning("Prediction: {}, not evaluated".format(file_name))
         else:
-            df_pred = evaluate_prediction(prediction, gt, ontologies, tau_arr, gt_exclude,
-                                          normalization=norm, n_cpu=n_cpu)
+            df_pred, metrics_B_df_pred = evaluate_prediction(prediction, gt, ontologies, tau_arr, gt_exclude,
+                                                             normalization=norm, n_cpu=n_cpu, B=B, B_pct=B_pct)
             df_pred['filename'] = file_name.replace(pred_folder, '').replace('/', '_')
             dfs.append(df_pred)
+            if isinstance(metrics_B_df_pred, pd.DataFrame):
+                metrics_B_df_pred['filename'] = file_name.replace(pred_folder, '').replace('/', '_')
+                metrics_B_dfs.append(metrics_B_df_pred)
             logging.info("Prediction: {}, evaluated".format(file_name))
 
     # Concatenate all dataframes and save them
     df = None
     dfs_best = {}
+    metrics_B_df = None
+    if metrics_B_dfs:
+        metrics_B_df = pd.concat(metrics_B_dfs)
+
     if dfs:
         df = pd.concat(dfs)
 
@@ -336,10 +351,10 @@ def cafa_eval(obo_file, pred_dir, gt_file, ia=None, no_orphans=False, norm='cafa
     else:
         logging.info("No predictions evaluated")
 
-    return df, dfs_best
+    return df, dfs_best, metrics_B_df
 
 
-def write_results(df, dfs_best, out_dir='results', th_step=0.01):
+def write_results(df, dfs_best, metrics_B_df, out_dir='results', th_step=0.01):
 
     # Create output folder here in order to store the log file
     out_folder = os.path.normpath(out_dir) + "/"
@@ -353,3 +368,6 @@ def write_results(df, dfs_best, out_dir='results', th_step=0.01):
 
     for metric in dfs_best:
         dfs_best[metric].to_csv('{}/evaluation_best_{}.tsv'.format(out_folder, metric), float_format="%.{}f".format(decimals), sep="\t")
+
+    if isinstance(metrics_B_df, pd.DataFrame):
+        metrics_B_df.to_csv('{}/Bootstrap_all.tsv'.format(out_folder), float_format="%.{}f".format(decimals), sep="\t")
