@@ -128,8 +128,9 @@ def compute_confusion_matrix_exclude(tau_arr, g_perprotein, pred_matrix, toi_per
         metrics[i, 4] = np.divide(n_intersection, n_pred, out=np.zeros_like(n_intersection, dtype='float'), where=n_pred > 0).sum()  # Precision
         metrics[i, 5] = np.divide(n_intersection, n_gt, out=np.zeros_like(n_gt, dtype='float'), where=n_gt > 0).sum()  # Recall
 
+        metrics_per_protein = pd.DataFrame({'n_pred': n_pred, 'TP': n_intersection, 'FP': [m.sum() for m in mis], 'FN': [r.sum() for r in remaining], 'n_gt': n_gt})
         if B_ind is not None:
-            metrics_B_tau[tau] = bootstrap_exclude(p_perprotein, intersection, mis, remaining, n_gt, B_ind)
+            metrics_B_tau[tau] = bootstrap(metrics_per_protein, B_ind)
     #if B_ind is not None:
     #    metrics_B = get_metrics_B(metrics_B_tau)
 
