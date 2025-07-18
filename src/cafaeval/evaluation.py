@@ -67,8 +67,9 @@ def compute_confusion_matrix(tau_arr, g, pred_matrix, toi, n_gt, ic_arr=None, B_
         metrics[i, 4] = np.divide(n_intersection, n_pred, out=np.zeros_like(n_intersection, dtype='float'), where=n_pred > 0).sum()  # Precision
         metrics[i, 5] = np.divide(n_intersection, n_gt, out=np.zeros_like(n_gt, dtype='float'), where=n_gt > 0).sum()  # Recall
 
+        metrics_per_protein = pd.DataFrame({'n_pred': n_pred, 'TP': n_intersection, 'FP': mis.sum(axis=1), 'FN': remaining.sum(axis=1), 'n_gt': n_gt})
         if B_ind is not None:
-            metrics_B_tau[tau] = bootstrap(p, intersection, mis, remaining, n_gt, B_ind)
+            metrics_B_tau[tau] = bootstrap(metrics_per_protein, B_ind)
     #if B_ind is not None:
     #    metrics_B = get_metrics_B(metrics_B_tau)
     return metrics, metrics_B_tau
@@ -126,6 +127,7 @@ def compute_confusion_matrix_exclude(tau_arr, g_perprotein, pred_matrix, toi_per
         # Macro-averaging
         metrics[i, 4] = np.divide(n_intersection, n_pred, out=np.zeros_like(n_intersection, dtype='float'), where=n_pred > 0).sum()  # Precision
         metrics[i, 5] = np.divide(n_intersection, n_gt, out=np.zeros_like(n_gt, dtype='float'), where=n_gt > 0).sum()  # Recall
+
         if B_ind is not None:
             metrics_B_tau[tau] = bootstrap_exclude(p_perprotein, intersection, mis, remaining, n_gt, B_ind)
     #if B_ind is not None:
@@ -148,31 +150,32 @@ def get_metrics_B(metrics_B_tau):
         metrics_B[b] = pd.DataFrame(metrics_b, columns=columns)
     return metrics_B
 
-def bootstrap(p, intersection, mis, remaining, n_gt, B_ind):
+def bootstrap(metrics_per_protein, B_ind):
     metrics_B_tau = np.zeros((len(B_ind), 6), dtype='float')
     for b, ind in enumerate(B_ind):
-        n_gt_b = n_gt[ind]
-        p_b = p[ind]
-        intersection_b = intersection[ind]
-        mis_b = mis[ind]
-        remaining_b = remaining[ind]
+        metrics_per_protein_b = metrics_per_protein.iloc[ind]
+        # n_gt_b = n_gt[ind]
+        # p_b = p[ind]
+        # intersection_b = intersection[ind]
+        # mis_b = mis[ind]
+        # remaining_b = remaining[ind]
 
-        n_pred_b = p_b.sum(axis=1)  # TP + FP
-        n_intersection_b = intersection_b.sum(axis=1)  # TP
+        #n_pred_b = p_b.sum(axis=1)  # TP + FP
+        #n_intersection_b = intersection_b.sum(axis=1)  # TP
 
         # Number of proteins with at least one term predicted with score >= ta
-        metrics_B_tau[b, 0] = (n_pred_b > 0).sum()
+        metrics_B_tau[b, 0] = (metrics_per_protein_b["n_pred"] > 0).sum()
 
         # Sum of confusion matrices
-        metrics_B_tau[b, 1] = n_intersection_b.sum()  # TP
-        metrics_B_tau[b, 2] = mis_b.sum(axis=1).sum()  # FP
-        metrics_B_tau[b, 3] = remaining_b.sum(axis=1).sum()  # FN
+        metrics_B_tau[b, 1] = metrics_per_protein_b["TP"].sum()  # TP
+        metrics_B_tau[b, 2] = metrics_per_protein_b["FP"].sum()  # FP
+        metrics_B_tau[b, 3] = metrics_per_protein_b["FN"].sum()  # FN
 
         # Macro-averaging
-        metrics_B_tau[b, 4] = np.divide(n_intersection_b, n_pred_b, out=np.zeros_like(n_intersection_b, dtype='float'),
-                                  where=n_pred_b > 0).sum()  # Precision
-        metrics_B_tau[b, 5] = np.divide(n_intersection_b, n_gt_b, out=np.zeros_like(n_gt_b, dtype='float'),
-                                  where=n_gt_b > 0).sum()  # Recall
+        metrics_B_tau[b, 4] = np.divide(metrics_per_protein_b["TP"], metrics_per_protein_b["n_pred"], out=np.zeros_like(metrics_per_protein_b["TP"], dtype='float'),
+                                  where=metrics_per_protein_b["n_pred"] > 0).sum()  # Precision
+        metrics_B_tau[b, 5] = np.divide(metrics_per_protein_b["TP"], metrics_per_protein_b["n_gt"], out=np.zeros_like(metrics_per_protein_b["n_gt"], dtype='float'),
+                                  where=metrics_per_protein_b["n_gt"] > 0).sum()  # Recall
 
     return metrics_B_tau
 
