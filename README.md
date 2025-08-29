@@ -1,44 +1,37 @@
-# CAFA-evaluator
+# CAFA-evaluator (CAFA5 Edition)
 
-CAFA-evaluator is a Python program designed to evaluate the performance of prediction methods on targets 
-with hierarchical concept dependencies.
-It generalizes multi-label evaluation to modern ontologies where the prediction targets are drawn 
-from a directed acyclic graph and achieves high efficiency by leveraging matrix computation and topological sorting.
+This repo was branched from the [CAFA-evaluator](https://github.com/BioComputingUP/CAFA-evaluator) and additional functionality was added.
+Visit the original [CAFA-evaluator Wiki](https://github.com/BioComputingUP/CAFA-evaluator/wiki) for more information about the algorithm.
 
-The code replicates the 
-[Critical Assessment of protein Function Annotation (CAFA)](https://www.biofunctionprediction.org/cafa/) benchmarking, 
-which evaluates predictions of the consistent subgraphs in [Gene Ontology](http://geneontology.org/). 
-The package also contains a **Jupyter Notebook** to generate precision-recall and remaining uncertainty–misinformation curves.
-CAFA-evaluator implementation was inspired by the original Matlab code used in CAFA2 assessment and available at 
-[https://github.com/yuxjiang/CAFA2](https://github.com/yuxjiang/CAFA2).
 
-Visit the [CAFA-evaluator Wiki](https://github.com/BioComputingUP/CAFA-evaluator/wiki) for more information about the algorithm.
+The two main new functionalities are:
+* **Flexible terms-of-interest**
+  A file can be passed in with a list of ontology terms that will be evaluated for all proteins. All terms no included in the file
+  will not be evaluated. This can be used to exclude terms that were added to the ontology since predictions were collected or to
+  exclude terms that have been deemed uninformative. In the figure below, the terms of interest are shown with a red outline.
+  These terms will be evaluated for _all proteins_ if they appear in the ground truth file.
+* **Protein-specific known annotations**
+  To evaluate under the "Partial Knowledge" evaluation setting, any annotations known previous to prediction should be excluded from
+  evaluation. This exclusion is done similarly to the terms-of-interst, but for each individual protein.
+  In the figure below, the annotations are shown for a single protein. Terms with annotations known before the prediction phase are
+  shown in yellow in the Cellular Component and Molecular Function aspects of the Gene Ontology. These terms should be excluded from
+  evaluation. New annotations are shown to the right in blue. Evaluation should happen _only_ for these terms. If the newly annotated
+  terms do not appear in the terms-of-interest file, they will not be evaluated.
+
+ ![Evaluting CAFA Partial Knowledge setting and using terms of interest](EvalutingCAFAPartial.jpg)
+
+
 
 ## Citation
+Please cite the original CAFA Evaluator and the forthcoming CAFA 5 papers if you use this code in published research  
 [CAFA-evaluator: A Python Tool for Benchmarking Ontological Classification Methods](https://doi.org/10.1093/bioadv/vbae043)  
 *D Piovesan, D Zago, P Joshi, MC De Paolis Kaluza, M Mehdiabadi, R Ramola, AM Monzon, W Reade, I Friedberg, P Radivojac, SCE Tosatto*  
 **Bioinformatics Advances (2024)** - DOI: [10.1093/bioadv/vbae043](https://doi.org/10.1093/bioadv/vbae043)
 
-## Installation
+Crowdsourcing the fifth critical assessment of protein function annotation algorithms (CAFA 5) yields improvement in protein function prediction  
+*TBD*  
+**TBF** - DOI: TBD
 
-You can use the tool simply cloning this repo and running `__main__.py` Python script. 
-which implements a command line interface.
-To avoid import errors you need to add the source root folder 
-to the `PYTHONPATH` environment variable. For example:
-
-    export PYTHONPATH=/path/to/CAFA-evaluator/src:$PYTHONPATH
-
-Alternatively, you can install the package with Pip. No need to export any variable
-in this case.
-
-From GitHub:
-
-    git clone https://github.com/BioComputingUP/CAFA-evaluator.git  
-    pip install .
-
-From PyPI:
-
-    pip install cafaeval
 
 ## Usage
 
@@ -47,29 +40,42 @@ Both the command line and the library accept the following positional arguments:
 
 * **Ontology file** in OBO format
 
+* _**NEW**_: **Terms of Interst file** contains term names that appear in the OBO file to be included in evaluation
+  
+* _**NEW**_: **Known annotations file** contains annotations known before the evaluation phase
+
 * **Prediction folder** contain prediction files. Files can be organized into sub-folders, 
 sub-folders are processed recursively and the sub-folder name is used as prefix for the method name
 
 * **Ground truth file** containing targets and associated ontology terms
 
-Example input files are provided inside the `data/example` folder. If you have installed the software using pip,
-the folder is located in the Python `site-packages` directory.
+Example input files are provided inside the `data/example` folder. 
 
 ### Command line
 
 When executed from the command line the script logs information about the calculation in the console (standard error) and
 will create a folder named `results` containing the evaluation results. 
 A different folder can be specified using the `-out_dir` option. 
-
-The following options are available:
-When installed with pip the script is available as `cafaeval` command.
+ 
+The original CAFA-evaluator functionality works as before without additional imput arguments
 
 ```bashcon
-cafaeval ontology_file prediction_folder ground_truth_file 
+python3 /path/to/CAFA-evaluator/src/cafaeval/__main__.py ontology_file prediction_folder ground_truth_file 
 ```
-If you simply cloned the repository:
+
+_**NEW**_: By default, all terms in the ontology will be considered in the evaluation. To include only specific terms, provide a terms-of-interest file
 ```bashcon
-python3 /path/to/CAFA-evaluator/src/cafaeval/__main__.py ontology_file prediction_folder ground_truth_file
+python3 /path/to/CAFA-evaluator/src/cafaeval/__main__.py ontology_file prediction_folder ground_truth_file -toi terms_of_interest_file
+```
+
+_**NEW**_: To evaluate Partial Knowledge annotations, the known annotations file must be passed in with the `-known` option.
+```bashcon
+python3 /path/to/CAFA-evaluator/src/cafaeval/__main__.py ontology_file prediction_folder ground_truth_file -known known_annotations_file
+```
+
+_**NEW**_: You can pass in both terms-of-interest and known annotations:
+```bashcon
+python3 /path/to/CAFA-evaluator/src/cafaeval/__main__.py ontology_file prediction_folder ground_truth_file -toi terms_of_interest_file -known known_annotations_file
 ```
 
 ### Library
@@ -162,7 +168,8 @@ T_4	IDPO:00025
 
 **Information accretion file (optional)** - If not provided, the weighted and S statistics are not generated.
 Information accretion (IA) can be calculated as described in
-[Wyatt and Radivojac, Bioinformatics, 2013](https://pubmed.ncbi.nlm.nih.gov/23813009/).
+[Wyatt and Radivojac, Bioinformatics, 2013](https://pubmed.ncbi.nlm.nih.gov/23813009/) 
+and implemented in [https://github.com/claradepaolis/InformationAccretion](https://github.com/claradepaolis/InformationAccretion)
 
 ```
 IDPO:00024  6.32
@@ -172,7 +179,7 @@ IDPO:00025  0.56
 ...
 ```
 
-**Known annotations (optional)** - Tab separated file with target ID and term ID. 
+_**NEW**_: **Known annotations (optional)** - Tab separated file with target ID and term ID. 
 File containing known annotations to exclude from partial-knowledge evaluation. 
 If not provided, all terms will be used in evaluation
 
@@ -184,7 +191,7 @@ A0A021WW32	GO:0006996	BPO
 ...
 ```
 
-**Terms of Interest (optional)** - File with term ID to include in evaluation for all proteins, one ID per line.  
+_**NEW**_: **Terms of Interest (optional)** - File with term ID to include in evaluation for all proteins, one ID per line.  
 If not provided, all terms will be used in evaluation. 
 This file is used to specify terms that will be evaluated, usually used to exclude terms in the ontology that have since
 been obsoleted or are not of interest for the evaluation.
@@ -223,37 +230,4 @@ A different file for each metric is created.
 |  -th_step   |      0.01  | Step size of prediction score thresholds to consider in the range [0, 1). A smaller step, means more calculation                                                                                                                                                          |
 | -max_terms  |            | Number of terms for protein and namespace to consider in the evaluation. Parsing stops when the target limit for every namespace is reached. The score is not checked, meaning that terms are not sorted before the check, and the check is performed before propagation. |
 |  -threads   |       4    | Parallel threads. `0` means use all available CPU threads. Do not use multi thread if you are short in memory                                                                                                                                                             |
-
-
-
-## Plotting
-
-Plots are generated by running all the cells in the `plot.ipynb` Jupyter Notebook.
-In order to generate the figures you need to manually modify the first cell of the notebook which 
-contains a few parameters: 
-* the path to the input file generated in the evaluation`evaluation_all.tsv`, see [Usage](#usage) above.
-* the output folder
-* the metric (F-score, weighted F-score, S measure).
-* an optional file including information about methods aliases and groups. If provided, the results
-are presented selecting only one method per group. The file should look like:
-```
-filename	group	label
-pred_1.tsv	BioLab	BioLab_model_1
-pred_2.tsv	BioLab	BioLab_model_2
-pred_3.tsv	JohnLab	JohnLab_model_1
-```
-
-The notebook generates the following files:
-
-* `fig_< metric >_< name_space >.png` A figure for each namespace in the dataframe and the selected metric. 
-The notebook generates one metric at the time, you have to modify the input cell to generate the plots for a different metric
-
-* `fig_< metric >.tsv` A file with the data points for the metric curves. One curve for each method.
-```
-group	label	ns	tau	cov	wrc	wpr	wf
-INGA	INGA_1	biological_process	0.010	0.993	0.557	0.094	0.160
-INGA	INGA_1	biological_process	0.020	0.993	0.555	0.094	0.161
-INGA	INGA_1	biological_process	0.030	0.993	0.552	0.095	0.162
-INGA	INGA_1	biological_process	0.040	0.993	0.551	0.095	0.163
-```
 
