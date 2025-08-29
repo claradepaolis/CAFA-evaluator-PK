@@ -6,17 +6,26 @@ Visit the original [CAFA-evaluator Wiki](https://github.com/BioComputingUP/CAFA-
 
 The two main new functionalities are:
 * **Flexible terms-of-interest**
-  A file can be passed in with a list of ontology terms that will be evaluated for all proteins. All terms no included in the file
-  will not be evaluated. This can be used to exclude terms that were added to the ontology since predictions were collected or to
-  exclude terms that have been deemed uninformative. In the figure below, the terms of interest are shown with a red outline.
-  These terms will be evaluated for _all proteins_ if they appear in the ground truth file.
+  A file can be passed in with a list of ontology terms that will be evaluated for all proteins. Only terms included in the file
+  will be evaluated. This can be used to exclude terms that were added to the ontology since predictions were collected or to
+  exclude terms that have been deemed uninformative or for whatever reason should not be included in evaluation.  
+
+  In the figure below, the terms of interest are shown with a red outline.
+  These terms will be evaluated for _all proteins_ for which there are annotations in the ground truth file.
+  
 * **Protein-specific known annotations**
   To evaluate under the "Partial Knowledge" evaluation setting, any annotations known previous to prediction should be excluded from
   evaluation. This exclusion is done similarly to the terms-of-interst, but for each individual protein.
+  
   In the figure below, the annotations are shown for a single protein. Terms with annotations known before the prediction phase are
   shown in yellow in the Cellular Component and Molecular Function aspects of the Gene Ontology. These terms should be excluded from
   evaluation. New annotations are shown to the right in blue. Evaluation should happen _only_ for these terms. If the newly annotated
-  terms do not appear in the terms-of-interest file, they will not be evaluated.
+  terms do not appear in the terms-of-interest file, they will not be evaluated.  
+
+  A known-annotations file can be passed in for any evaluation setting and will not have and effect in No-Knowledge or Limited-Knowledge
+  evaluation. For example in the figure below, if a known-annotations file is passed in with the terms in yellow listed, the Limited-Knowlege
+  evaluation of the Biological Process (BP) aspect will produce the same results as if the file was not passed in at all. This is because
+  there are no known terms in BP for this process and they will not appear in the known annotations file.
 
  ![Evaluting CAFA Partial Knowledge setting and using terms of interest](EvalutingCAFAPartial.jpg)
 
@@ -78,91 +87,29 @@ _**NEW**_: You can pass in both terms-of-interest and known annotations:
 python3 /path/to/CAFA-evaluator/src/cafaeval/__main__.py ontology_file prediction_folder ground_truth_file -toi terms_of_interest_file -known known_annotations_file
 ```
 
-### Library
-
-The `cafa_eval` function is the main entry point of the package. 
-Below is reported an example using the example files provided in the `data/example` folder.
-
-
-```pycon
->>> import cafaeval
->>> from cafaeval.evaluation import cafa_eval
->>> cafa_eval("IDPO_disorder_function.obo", "predictions", "ground_truth.tsv")
-(                                       n        tp        fp        fn        pr  ...         f         s  pr_micro  rc_micro   f_micro
-filename   ns                tau                                                  ...                                                  
-pred_5.tsv disorder_function 0.01  168.0  2.928571  7.083333  0.130952  0.292532  ...  0.448380  7.084544  0.292509  0.957198  0.448087
-                             0.02  168.0  2.928571  7.083333  0.130952  0.292532  ...  0.448380  7.084544  0.292509  0.957198  0.448087
-                             0.03  168.0  2.928571  7.077381  0.130952  0.292695  ...  0.448571  7.078592  0.292683  0.957198  0.448292
-                             0.04  168.0  2.928571  7.077381  0.130952  0.292695  ...  0.448571  7.078592  0.292683  0.957198  0.448292
-                             0.05  168.0  2.928571  7.077381  0.130952  0.292695  ...  0.448571  7.078592  0.292683  0.957198  0.448292
-...                                  ...       ...       ...       ...       ...  ...       ...       ...       ...       ...       ...
-pred_1.tsv disorder_function 0.41    1.0  0.005952  0.017857  3.053571  0.250000  ...  0.003937  3.053624  0.250000  0.001946  0.003861
-                             0.42    1.0  0.005952  0.017857  3.053571  0.250000  ...  0.003937  3.053624  0.250000  0.001946  0.003861
-                             0.43    1.0  0.005952  0.017857  3.053571  0.250000  ...  0.003937  3.053624  0.250000  0.001946  0.003861
-                             0.44    1.0  0.005952  0.017857  3.053571  0.250000  ...  0.003937  3.053624  0.250000  0.001946  0.003861
-                             0.45    1.0  0.005952  0.011905  3.053571  0.333333  ...  0.003945  3.053595  0.333333  0.001946  0.003868
-
-[352 rows x 14 columns], {'f':                                        n        tp        fp        fn        pr  ...         s  pr_micro  rc_micro   f_micro  cov_max
-filename   ns                tau                                                  ...                                                 
-pred_1.tsv disorder_function 0.04  166.0  1.744048  2.095238  1.315476  0.466566  ...  2.473964  0.454264  0.570039  0.505608      1.0
-pred_2.tsv disorder_function 0.84  163.0  1.755952  1.845238  1.303571  0.504499  ...  2.259248  0.487603  0.573930  0.527256      1.0
-pred_3.tsv disorder_function 0.89  168.0  2.113095  1.601190  0.946429  0.638889  ...  1.859983  0.568910  0.690661  0.623902      1.0
-pred_4.tsv disorder_function 0.06  168.0  2.333333  0.666667  0.726190  0.777778  ...  0.985798  0.777778  0.762646  0.770138      1.0
-pred_5.tsv disorder_function 0.38  167.0  2.345238  1.952381  0.714286  0.596671  ...  2.078941  0.545706  0.766537  0.637540      1.0
-
-[5 rows x 15 columns], 's':                                        n        tp        fp        fn        pr  ...         s  pr_micro  rc_micro   f_micro  cov_max
-filename   ns                tau                                                  ...                                                 
-pred_1.tsv disorder_function 0.06  102.0  1.047619  0.297619  2.011905  0.816667  ...  2.033799  0.778761  0.342412  0.475676      1.0
-pred_2.tsv disorder_function 0.91  124.0  1.196429  0.839286  1.863095  0.638978  ...  2.043410  0.587719  0.391051  0.469626      1.0
-pred_3.tsv disorder_function 0.89  168.0  2.113095  1.601190  0.946429  0.638889  ...  1.859983  0.568910  0.690661  0.623902      1.0
-pred_4.tsv disorder_function 0.06  168.0  2.333333  0.666667  0.726190  0.777778  ...  0.985798  0.777778  0.762646  0.770138      1.0
-pred_5.tsv disorder_function 0.42  156.0  1.642857  0.714286  1.416667  0.776221  ...  1.586552  0.696970  0.536965  0.606593      1.0
-
-[5 rows x 15 columns], 'f_micro':                                        n        tp        fp        fn        pr  ...         s  pr_micro  rc_micro   f_micro  cov_max
-filename   ns                tau                                                  ...                                                 
-pred_1.tsv disorder_function 0.04  166.0  1.744048  2.095238  1.315476  0.466566  ...  2.473964  0.454264  0.570039  0.505608      1.0
-pred_2.tsv disorder_function 0.84  163.0  1.755952  1.845238  1.303571  0.504499  ...  2.259248  0.487603  0.573930  0.527256      1.0
-pred_3.tsv disorder_function 0.89  168.0  2.113095  1.601190  0.946429  0.638889  ...  1.859983  0.568910  0.690661  0.623902      1.0
-pred_4.tsv disorder_function 0.06  168.0  2.333333  0.666667  0.726190  0.777778  ...  0.985798  0.777778  0.762646  0.770138      1.0
-pred_5.tsv disorder_function 0.38  167.0  2.345238  1.952381  0.714286  0.596671  ...  2.078941  0.545706  0.766537  0.637540      1.0
-
-[5 rows x 15 columns]})
-```
-
-The output of `cafa_eval` is a tuple containing:
-* A pandas DataFrame with the evaluation results, one row per prediction file, namespace and threshold.
-* A dictionary with the best scores (max F-measure, max Weighted F-measure, min Semantic similarity). For each 
-score the dictionary contain a pandas DataFrame with one row per prediction file, namespace and threshold. 
-
-The `write_results` function generates the output files.
-
-```pycon
->>> import cafaeval
->>> from cafaeval.evaluation import cafa_eval, write_results
->>> res = cafa_eval("IDPO_disorder_function.obo", "predictions", "ground_truth.tsv")
->>> write_results(*res)
-```
-
 
 ## Input files
 **Prediction file** - Tab separated file with the target ID, term ID and score columns.
 
 ~~~txt
-T_1	IDPO:00501	0.06
-T_1	IDPO:00506	0.05
-T_1	IDPO:00507	0.03
-T_2	IDPO:00501	0.04
-T_2	IDPO:00506	0.02
+A0A0A6YY25  GO:0010468  3.6396e-05
+O54963	GO:0010033	0.0617
+O54963	GO:1990841	0.035
+X1WHY6	GO:0010033	0.1352
+X1WHY6	GO:0048731	0.0478
 ...
 ~~~
 
 **Ground truth file** - Tab separated file with the target ID and term ID. 
 Additional columns are discarded.
 ~~~
-T_1	IDPO:00024
-T_2	IDPO:00506
-T_3	IDPO:00502
-T_4	IDPO:00025
+A0A0A6YY25	GO:0009892	
+A0A0A6YY25	GO:0010468
+O54963	GO:1990841
+O54963	GO:0010033
+O88898	GO:1990841
+X1WHY6	GO:0048609
+X1WHY6	GO:0048731
 ...
 ~~~
 
@@ -172,10 +119,10 @@ Information accretion (IA) can be calculated as described in
 and implemented in [https://github.com/claradepaolis/InformationAccretion](https://github.com/claradepaolis/InformationAccretion)
 
 ```
-IDPO:00024  6.32
-IDPO:00506  12.04
-IDPO:00502  1.34
-IDPO:00025  0.56
+GO:0009892	0.3286
+GO:0010468	0.0184
+GO:0008150  0
+GO:1990841  3.1613
 ...
 ```
 
@@ -184,10 +131,11 @@ File containing known annotations to exclude from partial-knowledge evaluation.
 If not provided, all terms will be used in evaluation
 
 ```
-A0A009IHW8	GO:0072523	BPO
-A0A009IHW8	GO:0046700	BPO
-A0A021WW32	GO:0048869	BPO
-A0A021WW32	GO:0006996	BPO
+A0A009IHW8	GO:0072523
+A0A009IHW8	GO:0046700
+O54963	GO:0045596
+O54963	GO:2000064
+O54963	GO:0062014
 ...
 ```
 
