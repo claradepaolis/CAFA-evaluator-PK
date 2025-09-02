@@ -1,0 +1,105 @@
+format-version: 1.2
+default-namespace: gene_ontology
+ontology: go
+
+[Term]
+id: GO:0008150
+name: biological_process
+namespace: biological_process
+alt_id: GO:0000004
+alt_id: GO:0007582
+alt_id: GO:0044699
+def: "A biological process represents a specific objective that the organism is genetically programmed to achieve. Biological processes are often described by their outcome or ending state, e.g., the biological process of cell division results in the creation of two daughter cells (a divided cell) from a single parent cell. A biological process is accomplished by a particular set of molecular functions carried out by specific gene products (or macromolecular complexes), often in a highly regulated manner and in a particular temporal sequence." [GOC:pdt]
+comment: Note that, in addition to forming the root of the biological process ontology, this term is recommended for use for the annotation of gene products whose biological process is unknown. When this term is used for annotation, it indicates that no information was available about the biological process of the gene product annotated as of the date the annotation was made; the evidence code 'no data' (ND), is used to indicate this.
+subset: goslim_candida
+subset: goslim_chembl
+subset: goslim_metagenomics
+subset: goslim_pir 
+subset: goslim_plant
+subset: goslim_pombe
+subset: goslim_yeast
+synonym: "biological process" EXACT []
+synonym: "physiological process" EXACT []
+synonym: "single organism process" RELATED []
+synonym: "single-organism process" RELATED []
+xref: Wikipedia:Biological_process
+
+[Term]
+id: GO:0032501
+name: multicellular organismal process
+namespace: biological_process
+alt_id: GO:0044707
+alt_id: GO:0050874
+def: "Any biological process, occurring at the level of a multicellular organism, pertinent to its function." [GOC:curators, GOC:dph, GOC:isa_complete, GOC:tb]
+subset: gocheck_do_not_annotate
+subset: goslim_pir 
+synonym: "organismal physiological process" EXACT []
+synonym: "single-multicellular organism process" RELATED []
+is_a: GO:0008150 ! biological_process
+
+[Term]
+id: GO:0040011
+name: locomotion
+namespace: biological_process
+def: "Self-propelled movement of a cell or organism from one location to another." [GOC:dgh]
+subset: goslim_chembl
+subset: goslim_pir
+is_a: GO:0008150 ! biological_process
+
+[Term]
+id: GO:0032501
+name: multicellular organismal process
+namespace: biological_process
+alt_id: GO:0044707
+alt_id: GO:0050874
+def: "Any biological process, occurring at the level of a multicellular organism, pertinent to its function." [GOC:curators, GOC:dph, GOC:isa_complete, GOC:tb]
+subset: gocheck_do_not_annotate
+subset: goslim_pir
+synonym: "organismal physiological process" EXACT []
+synonym: "single-multicellular organism process" RELATED []
+is_a: GO:0008150 ! biological_process
+
+[Term]
+id: GO:0050879
+name: multicellular organismal movement
+namespace: biological_process
+def: "Any physiological process involved in changing the position of a multicellular organism or an anatomical part of a multicellular organism." [GOC:dph, GOC:mtg_muscle, GOC:tb]
+subset: goslim_pir
+is_a: GO:0032501 ! multicellular organismal process
+
+[Term]
+id: GO:0031987
+name: locomotion involved in locomotory behavior
+namespace: biological_process
+def: "Self-propelled movement of a cell or organism from one location to another in a behavioral context; the aspect of locomotory behavior having to do with movement." [GOC:mah]
+synonym: "locomotion during locomotory behaviour" EXACT []
+is_a: GO:0040011 ! locomotion
+
+[Term]
+id: GO:0033058
+name: directional locomotion 
+namespace: biological_process
+def: "Self-propelled movement of a cell or organism from one location to another along an axis." [GOC:mtg_MIT_16mar07]
+is_a: GO:0040011 ! locomotion
+
+[Term]
+id: GO:0071965
+name: multicellular organismal locomotion
+namespace: biological_process
+def: "Locomotion in a multicellular organism, i.e. self-propelled movement of a multicellular organism from one location to another." [GOC:mah]
+is_a: GO:0040011 ! locomotion
+is_a: GO:0050879 ! multicellular organismal movement
+
+[Term]
+id: GO:0043056
+name: forward locomotion
+namespace: biological_process
+def: "Anterior movement of an organism, following the direction of the head of the animal." [GOC:go_curators]
+is_a: GO:0033058 ! directional locomotion
+
+[Term]
+id: GO:0043057
+name: backward locomotion
+namespace: biological_process
+def: "Posterior movement of an organism, e.g. following the direction of the tail of an animal." [GOC:go_curators]
+is_a: GO:0033058 ! directional locomotion 
