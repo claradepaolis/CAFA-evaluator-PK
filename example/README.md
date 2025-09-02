@@ -49,7 +49,8 @@ evaluation.
 ## Terms of Interest
 It is also possible to exclude some terms from evaluation for _all_ targets. The terms-of-interest file
 is an optional file that is used to list all terms on which to evaluate predictions. This list is 
-applied for all targets.
+applied for all targets. The list of terms is passed in with the `-toi` input option. If no file is 
+passed in, all terms in the graph will be used for evaluation
 
 In this example, terms of interest are shown in figure with a red, bold outline. Note that two of the 
 terms in the ontology are excluded (GO:0008150 and GO:0050879) which will not be included in any computations
