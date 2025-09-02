@@ -7,6 +7,12 @@ illustrative purposess.
 
 ![Example of partial knowledge evaluation](sample_eval.jpg)
 
+
+
+To run the example,
+``python3 /path/to/CAFA-evaluator/src/cafaeval/__main__.py go-sample.obo predictions ground_truth_partial.tsv -toi toi.tsv -known known_t0.tsv``
+
+
 ## Known annotations
 
 Partial knowledge evaluation is used when there are existing known annotations for a target (protein) in some aspect of the 
@@ -66,3 +72,23 @@ GO:0071965
 GO:0043056
 GO:0043057
 ``` 
+
+
+## Example Prediction
+
+
+
+The example predictions both achieve precision (pr) and recall (rc) of 1.0 (see table below). 
+Looking at the precition files, pred_2 predicts eveything perfect, while pred_1 predicts many terms "incorrectly." 
+However, all of the "errors" in pred_1 are on terms that are excluded either because they were not in the terms of interest 
+or because they are by predicting correctly the new annotations (in blue in the figure) that were included in the terms of interest (outlined in red).
+
+
+![Example of predictions](predictions.png)
+
+
+|   filename    |   ns                  |   tau    |   n      |   tp     |   fp     |   fn     |   pr     |   rc     |   cov    |   mi     |   ru     |   f      |   s      |   pr_micro  |   rc_micro  |   f_micro  |   cov_max  |
+|---------------|-----------------------|----------|----------|----------|----------|----------|----------|----------|----------|----------|----------|----------|----------|-------------|-------------|------------|------------|
+|   pred_1.tsv  |   biological_process  |   0.010  |   2.000  |   2.500  |   0.000  |   0.000  |   1.000  |   1.000  |   1.000  |   0.000  |   0.000  |   1.000  |   0.000  |   1.000     |   1.000     |   1.000    |   1.000    |
+|   pred_2.tsv  |   biological_process  |   0.010  |   2.000  |   2.500  |   0.000  |   0.000  |   1.000  |   1.000  |   1.000  |   0.000  |   0.000  |   1.000  |   0.000  |   1.000     |   1.000     |   1.000    |   1.000    |
+|               |                       |          |          |          |          |          |          |          |          |          |          |          |          |             |             |            |            |
