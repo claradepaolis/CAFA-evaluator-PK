@@ -81,7 +81,7 @@ GO:0043057
 The example predictions both achieve precision (pr) and recall (rc) of 1.0 (see table below). 
 Looking at the precition files, pred_2 predicts eveything perfect, while pred_1 predicts many terms "incorrectly." 
 However, all of the "errors" in pred_1 are on terms that are excluded either because they were not in the terms of interest 
-or because they are by predicting correctly the new annotations (in blue in the figure) that were included in the terms of interest (outlined in red).
+or because they are previously known annotations.
 
 
 ![Example of predictions](predictions.png)
