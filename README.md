@@ -1,4 +1,4 @@
-# CAFA-evaluator (CAFA5 Edition)
+# CAFA-evaluator (CAFA4+ Edition)
 
 This repo was branched from the [CAFA-evaluator](https://github.com/BioComputingUP/CAFA-evaluator) and additional functionality was added.
 Visit the original [CAFA-evaluator Wiki](https://github.com/BioComputingUP/CAFA-evaluator/wiki) for more information about the algorithm.
@@ -32,14 +32,14 @@ The two main new functionalities are:
 
 
 ## Citation
-Please cite the original CAFA Evaluator and the forthcoming CAFA 5 papers if you use this code in published research  
+Please cite the original CAFA Evaluator and, once available, the forthcoming CAFA 5 papers if you use this code in published research  
 [CAFA-evaluator: A Python Tool for Benchmarking Ontological Classification Methods](https://doi.org/10.1093/bioadv/vbae043)  
 *D Piovesan, D Zago, P Joshi, MC De Paolis Kaluza, M Mehdiabadi, R Ramola, AM Monzon, W Reade, I Friedberg, P Radivojac, SCE Tosatto*  
 **Bioinformatics Advances (2024)** - DOI: [10.1093/bioadv/vbae043](https://doi.org/10.1093/bioadv/vbae043)
 
 Crowdsourcing the fifth critical assessment of protein function annotation algorithms (CAFA 5) yields improvement in protein function prediction  
 *TBD*  
-**TBF** - DOI: TBD
+**TBD** - DOI: TBD
 
 
 ## Usage
