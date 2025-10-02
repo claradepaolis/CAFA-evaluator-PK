@@ -1,4 +1,4 @@
-from graph import Graph, Prediction, GroundTruth, propagate
+from cafaeval.graph import Graph, Prediction, GroundTruth, propagate
 import numpy as np
 import logging
 logging.getLogger(__name__).addHandler(logging.NullHandler())

@@ -2,8 +2,8 @@ import os
 import numpy as np
 import pandas as pd
 import multiprocessing as mp
-from parser import obo_parser, gt_parser, pred_parser, gt_exclude_parser, update_toi
-from tests import test_norm_metric, test_intersection
+from cafaeval.parser import obo_parser, gt_parser, pred_parser, gt_exclude_parser, update_toi
+from cafaeval.tests import test_norm_metric, test_intersection
 import logging
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 
