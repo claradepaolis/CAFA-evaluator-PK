@@ -52,6 +52,15 @@ class Graph:
             else:
                 logging.debug('Skipping branch to external namespace: {}'.format(id2))
         logging.debug("dag {}".format(self.dag))
+                
+        # Remove duplicates in adj and children lists
+        # This ensures that a parent-child term does not have multiple edges, which could lead to wrong topological sorting
+        for term in self.terms_list:
+            if term["adj"]:
+                term["adj"] = list(dict.fromkeys(term["adj"]))
+            if term["children"]:
+                term["children"] = list(dict.fromkeys(term["children"]))
+       
         # Topological sorting
         self.top_sort()
         logging.debug("order sorted {}".format(self.order))
