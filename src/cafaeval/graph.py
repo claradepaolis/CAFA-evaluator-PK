@@ -20,7 +20,7 @@ class Graph:
         self.dag = []  # [[], ...] terms (rows, axis 0) x parents (columns, axis 1)
         self.terms_dict = {}  # {term: {index: , name: , namespace: , def: }  used to assign term indexes in the gt
         self.terms_dict_alt = {}  # {alt_id: set(term, ...) }  alternative ids to canonical ids
-        self.terms_list = []  # [{id: term, name:, namespace: , def:, adg: [], children: []}, ...]
+        self.terms_list = []  # [{id: term, name:, namespace: , def:, adj: set(), children: set()}, ...]
         self.idxs = None  # Number of terms
         self.order = None
         self.toi = None
@@ -31,7 +31,7 @@ class Graph:
         for self.idxs, (term_id, term) in enumerate(terms_dict.items()):
             rel_list.extend([[term_id, rel, term['namespace']] for rel in term['rel']])
             self.terms_list.append({'id': term_id, 'name': term['name'], 'namespace': namespace, 'def': term['def'],
-                                 'adj': [], 'children': []})
+                                 'adj': set(), 'children': set()})
             self.terms_dict[term_id] = {'index': self.idxs, 'name': term['name'], 'namespace': namespace, 'def': term['def']}
             for a_id in term['alt_id']:
                 self.terms_dict_alt.setdefault(a_id, set()).add(term_id)
@@ -46,21 +46,15 @@ class Graph:
                 i = self.terms_dict[id1]['index']
                 j = self.terms_dict[id2]['index']
                 self.dag[i, j] = 1
-                self.terms_list[i]['adj'].append(j)
-                self.terms_list[j]['children'].append(i)
+                # Remove duplicates in adj and children lists
+                # This ensures that a parent-child term does not have multiple edges, which could lead to wrong topological sorting
+                self.terms_list[i]['adj'].add(j)
+                self.terms_list[j]['children'].add(i)
                 logging.debug("i,j {},{} {},{}".format(i, j, id1, id2))
             else:
                 logging.debug('Skipping branch to external namespace: {}'.format(id2))
         logging.debug("dag {}".format(self.dag))
-                
-        # Remove duplicates in adj and children lists
-        # This ensures that a parent-child term does not have multiple edges, which could lead to wrong topological sorting
-        for term in self.terms_list:
-            if term["adj"]:
-                term["adj"] = list(dict.fromkeys(term["adj"]))
-            if term["children"]:
-                term["children"] = list(dict.fromkeys(term["children"]))
-       
+        
         # Topological sorting
         self.top_sort()
         logging.debug("order sorted {}".format(self.order))
