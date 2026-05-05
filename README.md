@@ -37,9 +37,9 @@ Please cite the original CAFA Evaluator and, once available, the forthcoming CAF
 *D Piovesan, D Zago, P Joshi, MC De Paolis Kaluza, M Mehdiabadi, R Ramola, AM Monzon, W Reade, I Friedberg, P Radivojac, SCE Tosatto*  
 **Bioinformatics Advances (2024)** - DOI: [10.1093/bioadv/vbae043](https://doi.org/10.1093/bioadv/vbae043)
 
-Crowdsourcing the fifth critical assessment of protein function annotation algorithms (CAFA 5) yields improvement in protein function prediction  
-*TBD*  
-**TBD** - DOI: TBD
+[Advances in protein function prediction from the fifth CAFA challenge.](https://www.biorxiv.org/content/10.64898/2026.04.27.716980v1)
+*MC De Paolis Kaluza, R Ramola, P Joshi, D Piovesan, W Reade, S Orchard, MJ Martin, A Ignatchenko, Kaggle Competition Participants, B Rost, CA Orengo, M Robinson-Rechavi, D Durand, SE Brenner, CS Greene, SD Mooney, I Friedberg, P Radivojac.*
+bioRxiv, 2026-04 - DOI: [10.64898/2026.04.27.716980](https://doi.org/10.64898/2026.04.27.716980)
 
 
 ## Usage
