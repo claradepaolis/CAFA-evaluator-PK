@@ -41,6 +41,8 @@ Please cite the original CAFA Evaluator and, once available, the forthcoming CAF
 *MC De Paolis Kaluza, R Ramola, P Joshi, D Piovesan, W Reade, S Orchard, MJ Martin, A Ignatchenko, Kaggle Competition Participants, B Rost, CA Orengo, M Robinson-Rechavi, D Durand, SE Brenner, CS Greene, SD Mooney, I Friedberg, P Radivojac.*
 bioRxiv, 2026-04 - DOI: [10.64898/2026.04.27.716980](https://doi.org/10.64898/2026.04.27.716980)
 
+## Data Availability
+The CAFA 5 version of evaluation data can be found hereL [https://zenodo.org/records/20186533](https://zenodo.org/records/20186533)
 
 ## Usage
 
