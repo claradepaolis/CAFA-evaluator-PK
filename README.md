@@ -168,16 +168,28 @@ A different file for each metric is created.
 
 ## Optional parameters
 
-|  Argument   | Default value | Description                                                                                                                                                                                                                                                               |
-|:-----------:|------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-|  -out_dir   |   'results' | Output directory (tsv files + log). Either relative to current path or absolute                                                                                                                                                                                           |
-|     -ia     |            | Information accretion file                                                                                                                                                                                                                                                |
-|   -known    |            | Known annotations for each protein that should be excluded in partial-knowledge evaluation                                                                                                                                                                               |
-|    -toi     |            | Terms of interest file   (terms considered for all proteins)                                                                                                                                                                                                              |
-| -no_orphans |  False (flag) | Exclude orphans nodes (e.g. roots) from the calculation                                                                                                                                                                                                                   |
-|    -norm    |     'cafa'  | Normalization strategy. `cafa` normalize precision by the number of predicted targets and recall by the number of targets in the ground truth. `pred` normalize by the number of  predicted targets. `gt` normalize by the number of ground truth proteins                |
-|    -prop    |     'max'  | Ancestor propagation strategy. `max` propagate the max score of the traversed subgraph iteratively. `fill` propagate with max until a different score is found                                                                                                            |
-|  -th_step   |      0.01  | Step size of prediction score thresholds to consider in the range [0, 1). A smaller step, means more calculation                                                                                                                                                          |
-| -max_terms  |            | Number of terms for protein and namespace to consider in the evaluation. Parsing stops when the target limit for every namespace is reached. The score is not checked, meaning that terms are not sorted before the check, and the check is performed before propagation. |
-|  -threads   |       4    | Parallel threads. `0` means use all available CPU threads. Do not use multi thread if you are short in memory                                                                                                                                                             |
+|  Argument   | Default value | Description    |
+|:-----------:|---------------|--------------------------------------------------------------------------------------------|
+|  -out_dir   |   'results'   | Output directory (tsv files + log). Either relative to current path or absolute            |
+|     -ia     |               | Information accretion file                                                                 |
+|   -known    |               | Known annotations for each protein that should be excluded in partial-knowledge evaluation |
+|    -toi     |               | Terms of interest file   (terms considered for all proteins)                               |
+| -no_orphans |  False (flag) | Exclude orphans nodes (e.g. roots) from the calculation                                    |
+|    -norm    |     'cafa'    | Normalization strategy. `cafa` normalize precision by the number of predicted targets and recall by the number of targets in the ground truth. `pred` normalize by the number of  predicted targets. `gt` normalize by the number of ground truth proteins  |
+|    -prop    |     'max'     | Ancestor propagation strategy. `max` propagate the max score of the traversed subgraph iteratively. `fill` propagate with max until a different score is found     |
+|  -th_step   |      0.01     | Step size of prediction score thresholds to consider in the range [0, 1). A smaller step, means more calculation|
+| -max_terms  |               | Number of terms for protein and namespace to consider in the evaluation. Parsing stops when the target limit for every namespace is reached. The score is not checked, meaning that terms are not sorted before the check, and the check is performed before propagation. |
+|  -threads   |       4       | Parallel threads. `0` means use all available CPU threads. Do not use multi thread if you are short in memory |
 
+## Bootstrap Evaluation
+Use the Bootstrap branch of the repo for bootstrap evaluation. This code will be integrated into the main branch in the future.
+
+This code will sample _proteins_ in a prediction file and evaluate metrics on the sampled subset. If there are predictions on $$N$$ proteins, the code will sample $$B\_pct \cdot N$$ proteins _with replacement_, include _all terms for the sampled proteins_, and evaluate metrics on this set. 
+
+|  Argument   |       Default value       |                               Description                                |
+|:-----------:|---------------------------|--------------------------------------------------------------------------|
+|  -B         |   0 (no bootstrap samples)|           Number of bootstrap iterations                                 |
+|  -B_pct     |   0                       | Percentage of points to include in bootstrap iterations  (between 0-100) |
+
+
+For CAFA 4-5, `-B_ptc` is 100.
